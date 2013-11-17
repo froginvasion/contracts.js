@@ -949,6 +949,10 @@ root.exports = (moduleName, original = {}) ->
 # root.setExported :: ({}, Str) -> {}
 root.setExported = (exportObj, moduleName) ->
   for own name, value of exportObj
+    #prevents orig? branch being executed with malicious data.
+    #i.e. orig can be set from previous loop and we would then set
+    #orig with the new value if it doesn't pass the first test.
+    orig = null
     if (value isnt null) and typeof value is "object" or typeof value is "function"
       orig = contract_orig_map.get value
     if orig?
@@ -973,8 +977,12 @@ root.use = (exportObj, moduleName) ->
       if (value isnt null) and typeof value is "object" or typeof value is "function"
         orig = contract_orig_map.get value
       if orig?
+        if typeof orig.server is 'string'
+          mod = new ModuleName(orig.server,"",true)
+        else
+          mod = orig.server
         # apply the original contract with our client's module name
-        res[name] = orig.originalContract.check orig.originalValue, orig.server, moduleName, []
+        res[name] = orig.originalContract.check orig.originalValue, mod, moduleName, []
       else
         res[name] = value
     res
