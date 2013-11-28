@@ -986,6 +986,43 @@ root.use = (exportObj, moduleName) ->
       else
         res[name] = value
     res
+
+
+
+#import is an enhanced version of `use` which has support for functions who contain contracts in their props
+# root.import :: ({}, Str) -> {})
+root.import = (exportedObj, moduleName)->
+  res = {}
+
+  applyCheck = (orig)->
+    if typeof orig.server is "string"
+      mod = new ModuleName(orig.server,"",true)
+    else
+      mod = orig.server
+    {originalValue, originalContract} = orig
+    originalContract.check originalValue, mod, moduleName, []
+
+  getOriginal = (value)->
+    if (value isnt null) and typeof value is "object" or typeof value is "function"
+      contract_orig_map.get value
+
+  for own name, value of exportedObj
+    orig = getOriginal(value)
+    if orig?
+      res[name] = applyCheck(orig)
+    else
+      res[name] = value
+    if typeof value is "function"
+      for own k,v of value
+        o = getOriginal(v)
+        if o?
+          res[name][k] = applyCheck(o)
+        else
+          res[name][k] = v
+  res
+
+
+
 root.enabled = (b) -> enabled = b
 # puts every exported function onto the global scope
 root.autoload  = ->
