@@ -62,6 +62,8 @@ Utils =
       o = Object.getPrototypeOf(o)
     undefined
 
+
+
   # merges props of o2 into o1 return o1
   merge: (o1, o2) ->
     o3 = {}
@@ -420,6 +422,37 @@ ctorSafe = (dom, rng, options) ->
   fun dom, rng, opt
 
 
+
+# extend :: (Contract,Contract)-> Contract
+extend = (orig,ext)->
+  if not (orig instanceof Contract)
+    throw new Error "cannot extend non contract"
+  if not (ext instanceof Contract)
+    throw new Error "cannot extend contract with non contract"
+  if orig.oc is undefined
+    throw new Error "cannot extend non object contract"
+  if ext.oc is undefined
+    throw new Error "cannot extend object contract with non object contract"
+  origContract = orig.oc
+  extendingContract = ext.oc
+
+  for own key,orContract of origContract
+    extendedContract = extendingContract[key]
+    break if extendedContract is undefined
+    if extendedContract["value"] and extendedContract["value"] instanceof Contract
+      extendedContract = extendedContract["value"]
+    if orContract["value"] and orContract["value"] instanceof Contract
+      orContract = orContract["value"]
+    if not extendedContract.equals(orContract)
+      throw new Error "Both contracts have duplicate properties but contracts are not equal"
+
+  for own key,val of extendingContract
+    origContract[key] = val
+  c = object(origContract,{})
+  c
+
+
+
 object = (objContract, options = {}, name) ->
   objName = (obj) ->
     if name is undefined
@@ -636,7 +669,6 @@ object = (objContract, options = {}, name) ->
     unproxy.set op, this
     op
   )
-
   c.oc = objContract
   c.raw_options = options
 
@@ -918,7 +950,7 @@ root.not       = not_
 root.and       = and_
 root.opt       = opt
 root.guard     = guard
-
+root.extend    = extend
 # utility functions
 
 # for use with commonjs.
@@ -986,40 +1018,6 @@ root.use = (exportObj, moduleName) ->
       else
         res[name] = value
     res
-
-
-
-#import is an enhanced version of `use` which has support for functions who contain contracts in their props
-# root.import :: ({}, Str) -> {})
-root.import = (exportedObj, moduleName)->
-  res = {}
-
-  applyCheck = (orig)->
-    if typeof orig.server is "string"
-      mod = new ModuleName(orig.server,"",true)
-    else
-      mod = orig.server
-    {originalValue, originalContract} = orig
-    originalContract.check originalValue, mod, moduleName, []
-
-  getOriginal = (value)->
-    if (value isnt null) and typeof value is "object" or typeof value is "function"
-      contract_orig_map.get value
-
-  for own name, value of exportedObj
-    orig = getOriginal(value)
-    if orig?
-      res[name] = applyCheck(orig)
-    else
-      res[name] = value
-    if typeof value is "function"
-      for own k,v of value
-        o = getOriginal(v)
-        if o?
-          res[name][k] = applyCheck(o)
-        else
-          res[name][k] = v
-  res
 
 
 

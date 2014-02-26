@@ -636,3 +636,30 @@ test("instanceof works with contracts", function() {
     ok(!ffalse(f), "not an instance of Bar");
 });
 
+module("extends feature");
+
+test("extends works with object contracts", function(){
+   var o1 = object({silent: Bool});
+   var o2 = object({optional: Bool});
+
+   var newContract = extend(o1,o2);
+   ok(guard(newContract,{silent: true, optional: false}));
+   raises(function(){guard(newContract,{silent:true})});
+
+   var o3 = object({silent: Str});
+   var o4 = object({silent: Bool});
+   raises(function(){extend(o1,o3)});
+   ok(extend(o1,o4));
+});
+
+
+test("extends errors",function(){
+   var o1 = object({silent: Bool});
+   var f = fun(Num,Num);
+
+   raises(function(){extend(o1,{})});
+   raises(function(){extend({},o1)});
+   raises(function(){extend(o1,f)});
+   raises(function(){extend(f,o1)});
+
+});
