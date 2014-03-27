@@ -663,3 +663,15 @@ test("extends errors",function(){
    raises(function(){extend(f,o1)});
 
 });
+
+module("Blame for too many arguments");
+test("", function() {
+    var id = function(x){return x;};
+    var f = guard(fun([Num],Num), id);
+    var f2 = guard(fun(opt(Num), Num), id);
+    raises(function(){ f(2,3)});
+    ok(function() {f(2)});
+    ok(function(){ f2(2);});
+    ok(function() { f2();});
+    raises(function() { f2(2,3)});
+});

@@ -323,6 +323,9 @@ fun = (dom, rng, options) ->
         # check all the arguments
         i = 0
         max_i = Math.max dom?.length, arguments.length
+        if typeof dom?.length is 'number'
+          blameM neg, pos, "Too many arguments supplied to function", parents  if arguments.length > dom.length
+
         while i < max_i
           # might pass through undefined which is fine (opt will take
           # care of it if the argument is actually optional)
