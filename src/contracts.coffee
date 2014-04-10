@@ -152,56 +152,62 @@ blameM = (toblame, other, msg, parents) -> _blame toblame, other, msg, parents
 
 # creates an identity proxy handler
 idHandler = (obj) ->
-  getOwnPropertyDescriptor: (name) ->
-    desc = Object.getOwnPropertyDescriptor(obj, name)
-    desc.configurable = true  if desc isnt undefined
-    desc
+  #This test aims to differentiate between V8 in chrome and Gecko in Firefox.
+  #Since the direct proxy approach doesn't require default handlers to be implemented, we omit the
+  # idhandler in that case. Since in FF Proxy is a function and not in V8, this is how we do it.
+  if typeof Proxy is 'function'
+    {}
+  else
+    getOwnPropertyDescriptor: (name) ->
+      desc = Object.getOwnPropertyDescriptor(obj, name)
+      desc.configurable = true  if desc isnt undefined
+      desc
 
-  getPropertyDescriptor: (name) ->
-    desc = Utils.getPropertyDescriptor(obj, name)
-    desc.configurable = true  if desc
-    desc
+    getPropertyDescriptor: (name) ->
+      desc = Utils.getPropertyDescriptor(obj, name)
+      desc.configurable = true  if desc
+      desc
 
-  getOwnPropertyNames: ->
-    Object.getOwnPropertyNames obj
+    getOwnPropertyNames: ->
+      Object.getOwnPropertyNames obj
 
-  getPropertyNames: ->
-    Object.getPropertyNames obj
+    getPropertyNames: ->
+      Object.getPropertyNames obj
 
-  defineProperty: (name, desc) ->
-    Object.defineProperty obj, name, desc
+    defineProperty: (name, desc) ->
+      Object.defineProperty obj, name, desc
 
-  'delete': (name) ->
-    delete obj[name]
+    'delete': (name) ->
+      delete obj[name]
 
-  fix: ->
-    if Object.isFrozen(obj)
-      return Object.getOwnPropertyNames(obj).map((name) ->
-        Object.getOwnPropertyDescriptor obj, name
-      )
-    undefined
+    fix: ->
+      if Object.isFrozen(obj)
+        return Object.getOwnPropertyNames(obj).map((name) ->
+          Object.getOwnPropertyDescriptor obj, name
+        )
+      undefined
 
-  has: (name) ->
-    name of obj
+    has: (name) ->
+      name of obj
 
-  hasOwn: (name) ->
-    Object::hasOwnProperty.call obj, name
+    hasOwn: (name) ->
+      Object::hasOwnProperty.call obj, name
 
-  enumerate: ->
-    result = []
-    name = undefined
-    for name of obj
-      result.push name
-    result
+    enumerate: ->
+      result = []
+      name = undefined
+      for name of obj
+        result.push name
+      result
 
-  get: (receiver, name) ->
-    obj[name]
+    get: (receiver, name) ->
+      obj[name]
 
-  set: (receiver, name, val) ->
-    obj[name] = val
-    true
+    set: (receiver, name, val) ->
+      obj[name] = val
+      true
 
-  keys: ->
+    keys: ->
     Object.keys obj
 
 
@@ -439,7 +445,7 @@ extend = (orig,ext)->
   origContract = orig.oc
   extendingContract = ext.oc
 
-  for own key,orContract of origContract
+  for own key, orContract of origContract
     extendedContract = extendingContract[key]
     break if extendedContract is undefined
     if extendedContract["value"] and extendedContract["value"] instanceof Contract
@@ -451,7 +457,7 @@ extend = (orig,ext)->
 
   for own key,val of extendingContract
     origContract[key] = val
-  c = object(origContract,{})
+  c = object(origContract, {})
   c
 
 
@@ -654,12 +660,16 @@ object = (objContract, options = {}, name) ->
       try
         op = new Proxy(obj, handler)
       catch e
+
         op = Proxy.createFunction(handler, (args) ->
           obj.apply this, arguments
         , (args) ->
-          boundArgs = [].concat.apply([ null ], arguments)
+          ###boundArgs = [].concat.apply([ null ], arguments)
           bf = obj.bind.apply(obj, boundArgs)
-          new bf()
+          new bf()###
+          objProto = Object.create(op.prototype);
+          instance = op.apply(objProto, arguments);
+          return (typeof instance is 'object' and instance ) or objProto;
         )
     else
       proto = if obj is null then null else Object.getPrototypeOf obj
@@ -811,6 +821,25 @@ and_ = (k1, k2) ->
     (@k1.equals(other.k1)) and (@k2.equals(other.k2))
 
   c
+
+class_ = (static_, instance, construct)->
+  args = Array::slice.call(arguments)
+  if not (static_ instanceof Contract)
+    throw new Error "Argument 0 to the `and` contract is not a contract"
+  if not (instance instanceof Contract)
+    throw new Error "Argument 1 to the `and` contract is not a contract"
+  if not (construct instanceof Contract)
+    throw new Error "Argument 1 to the `and` contract is not a contract"
+
+  if not (static_.ctype is "object")
+    throw new Error "Expected the first argument to be an object contract"
+  if not (instance.ctype is "object")
+    throw new Error "Expected the second argument to be an object contract"
+  if not (instance.ctype is "fun")
+    throw new Error "Expected the third argument to be a function contract"
+
+  c = new Contract
+  c = new Contract ""
 
 not_ = (k) ->
   if not (k instanceof Contract)

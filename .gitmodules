@@ -1,0 +1,3 @@
+[submodule "harmony-reflect"]
+	path = harmony-reflect
+	url = git@github.com:tvcutsem/harmony-reflect.git
