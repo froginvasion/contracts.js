@@ -152,62 +152,55 @@ blameM = (toblame, other, msg, parents) -> _blame toblame, other, msg, parents
 
 # creates an identity proxy handler
 idHandler = (obj) ->
-  #This test aims to differentiate between V8 in chrome and Gecko in Firefox.
-  #Since the direct proxy approach doesn't require default handlers to be implemented, we omit the
-  # idhandler in that case. Since in FF Proxy is a function and not in V8, this is how we do it.
-  if typeof Proxy is 'function'
-    {}
-  else
-    getOwnPropertyDescriptor: (name) ->
-      desc = Object.getOwnPropertyDescriptor(obj, name)
-      desc.configurable = true  if desc isnt undefined
-      desc
+  getOwnPropertyDescriptor: (name) ->
+    desc = Object.getOwnPropertyDescriptor(obj, name)
+    desc.configurable = true  if desc isnt undefined
+    desc
 
-    getPropertyDescriptor: (name) ->
-      desc = Utils.getPropertyDescriptor(obj, name)
-      desc.configurable = true  if desc
-      desc
+  getPropertyDescriptor: (name) ->
+    desc = Utils.getPropertyDescriptor(obj, name)
+    desc.configurable = true  if desc
+    desc
 
-    getOwnPropertyNames: ->
-      Object.getOwnPropertyNames obj
+  getOwnPropertyNames: ->
+    Object.getOwnPropertyNames obj
 
-    getPropertyNames: ->
-      Object.getPropertyNames obj
+  getPropertyNames: ->
+    Object.getPropertyNames obj
 
-    defineProperty: (name, desc) ->
-      Object.defineProperty obj, name, desc
+  defineProperty: (name, desc) ->
+    Object.defineProperty obj, name, desc
 
-    'delete': (name) ->
-      delete obj[name]
+  'delete': (name) ->
+    delete obj[name]
 
-    fix: ->
-      if Object.isFrozen(obj)
-        return Object.getOwnPropertyNames(obj).map((name) ->
-          Object.getOwnPropertyDescriptor obj, name
-        )
-      undefined
+  fix: ->
+    if Object.isFrozen(obj)
+      return Object.getOwnPropertyNames(obj).map((name) ->
+        Object.getOwnPropertyDescriptor obj, name
+      )
+    undefined
 
-    has: (name) ->
-      name of obj
+  has: (name) ->
+    name of obj
 
-    hasOwn: (name) ->
-      Object::hasOwnProperty.call obj, name
+  hasOwn: (name) ->
+    Object::hasOwnProperty.call obj, name
 
-    enumerate: ->
-      result = []
-      name = undefined
-      for name of obj
-        result.push name
-      result
+  enumerate: ->
+    result = []
+    name = undefined
+    for name of obj
+      result.push name
+    result
 
-    get: (receiver, name) ->
-      obj[name]
+  get: (receiver, name) ->
+    obj[name]
 
-    set: (receiver, name, val) ->
-      obj[name] = val
-      true
-
-    keys: ->
+  set: (receiver, name, val) ->
+    obj[name] = val
+    true
+  keys: ->
     Object.keys obj
 
 
@@ -477,7 +470,13 @@ object = (objContract, options = {}, name) ->
       name
 
   c = new Contract(objName(objContract), "object", (obj, pos, neg, parentKs) ->
-    handler = idHandler obj
+    #This test aims to differentiate between V8 in chrome and Gecko in Firefox.
+    #Since the direct proxy approach doesn't require default handlers to be implemented, we omit the
+    # idhandler in that case. Since in FF Proxy is a function and not in V8, this is how we do it.
+    if typeof Proxy isnt "function"
+      handler = idHandler obj
+    else
+      handler = {}
     that = this
     parents = parentKs.slice(0)
     parents.push this
