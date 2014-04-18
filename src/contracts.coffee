@@ -658,6 +658,12 @@ object = (objContract, options = {}, name) ->
     if typeof obj is "function"
       try
         op = new Proxy(obj, handler)
+        handler["construct"] = (target, args)->
+          objProto = Object.create(op.prototype);
+          instance = target.apply(objProto, args);
+          return (typeof instance is "object" and instance ) or objProto;
+        handler["apply"] = (target, thisArg, args)->
+          target.apply thisArg, args
       catch e
 
         op = Proxy.createFunction(handler, (args) ->
