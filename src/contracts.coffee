@@ -822,7 +822,7 @@ and_ = (k1, k2) ->
 
   c
 
-class_ = (static_, instance, construct)->
+###class_ = (static_, instance, construct)->
   args = Array::slice.call(arguments)
   if not (static_ instanceof Contract)
     throw new Error "Argument 0 to the `and` contract is not a contract"
@@ -839,7 +839,7 @@ class_ = (static_, instance, construct)->
     throw new Error "Expected the third argument to be a function contract"
 
   c = new Contract
-  c = new Contract ""
+  c = new Contract ""###
 
 not_ = (k) ->
   if not (k instanceof Contract)
@@ -1012,10 +1012,8 @@ root.exports = (moduleName, original = {}) ->
 # have been added to the object.
 # root.setExported :: ({}, Str) -> {}
 root.setExported = (exportObj, moduleName) ->
-  for own name, value of exportObj
-    #prevents orig? branch being executed with malicious data.
-    #i.e. orig can be set from previous loop and we would then set
-    #orig with the new value if it doesn't pass the first test.
+
+  replaceOrig = (value)->
     orig = null
     if (value isnt null) and typeof value is "object" or typeof value is "function"
       orig = contract_orig_map.get value
@@ -1026,6 +1024,15 @@ root.setExported = (exportObj, moduleName) ->
         originalValue: originalValue
         originalContract: originalContract
         server: moduleName
+
+  if exportObj instanceof Contract
+    replaceOrig exportObj
+  else
+    for own name, value of exportObj
+      #prevents orig? branch being executed with malicious data.
+      #i.e. orig can be set from previous loop and we would then set
+      #orig with the new value if it doesn't pass the first test.
+      replaceOrig value
   exportObj
 
 # takes an exports object and sets the client module name
@@ -1033,19 +1040,38 @@ root.setExported = (exportObj, moduleName) ->
 # root.use :: ({}, Str) -> {}
 root.use = (exportObj, moduleName) ->
   res = {}
+
+  getCorrectModuleName = (orig)->
+    if typeof orig.server is "string"
+      mod = new ModuleName(orig.server, "", true)
+    else
+      mod = orig.server
+    mod
+
+  getOrig = (value)->
+    orig = null
+    if (value isnt null) and typeof value is "object" or typeof value is "function"
+      orig = contract_orig_map.get value
+    orig
+
+  if exportObj instanceof Contract
+    orig = getOrig exportObj
+    if orig?
+      mod = getCorrectModuleName orig
+      res = orig.originalContract.check orig.originalValue, mod, moduleName, []
+      res
+    else
+      exportObj
+
   if typeof exportObj is "function"
     # return early...don't support wrapping functions ATM
     exportObj
   else
     for own name, value of exportObj
-      if (value isnt null) and typeof value is "object" or typeof value is "function"
-        orig = contract_orig_map.get value
+      orig = null
+      orig = getOrig value
       if orig?
-        if typeof orig.server is 'string'
-          mod = new ModuleName(orig.server,"",true)
-        else
-          mod = orig.server
-        # apply the original contract with our client's module name
+        mod = getCorrectModuleName orig
         res[name] = orig.originalContract.check orig.originalValue, mod, moduleName, []
       else
         res[name] = value
