@@ -636,7 +636,7 @@ test("instanceof works with contracts", function() {
     ok(!ffalse(f), "not an instance of Bar");
 });
 
-module("extends feature");
+module("object extends");
 
 test("extends works with object contracts", function(){
    var o1 = object({silent: Bool});
@@ -650,19 +650,16 @@ test("extends works with object contracts", function(){
    var o4 = object({silent: Bool});
    raises(function(){extend(o1,o3)});
    ok(extend(o1,o4));
+
+    o1 = object({silent: Bool});
+    var f = fun(Num,Num);
+
+    raises(function(){extend(o1,{})});
+    raises(function(){extend({},o1)});
+    raises(function(){extend(o1,f)});
+    raises(function(){extend(f,o1)});
 });
 
-
-test("extends errors",function(){
-   var o1 = object({silent: Bool});
-   var f = fun(Num,Num);
-
-   raises(function(){extend(o1,{})});
-   raises(function(){extend({},o1)});
-   raises(function(){extend(o1,f)});
-   raises(function(){extend(f,o1)});
-
-});
 
 module("Blame for too many arguments");
 test("", function() {
@@ -695,4 +692,56 @@ test("", function() {
     raises(function() { h(true)});
     ok(function() { h("ho")});
     ok(function() { h("hi","ho", "ho")});
+});
+
+module("Object class contract");
+test("", function() {
+
+    var Foo = function(){};
+    Foo.prototype.hi = "ho";
+
+    var f = guard(object({}, {"class": object({ hi: Str},{})}), Foo);
+    ok(function(){ var o = new f();o.hi;});
+    var h = guard(object({}, {"class": object({ hi: Num},{})}), Foo);
+    raises(function(){ var o = new h();o.hi;})
+
+    var Bar = function() { this.cid = "ho";};
+    var g = guard(object({}, {"class": object({ cid: Str},{})}), Bar);
+    ok(function(){ var o = new g();g.cid;});
+
+    var k = guard(object({}, {"class": object({ cid: Str},{})}), Foo);
+    raises(function(){ var o = new k();});
+});
+
+test("test coffeescript class inheritance", function() {
+    var A, B,
+        __hasProp = {}.hasOwnProperty,
+        __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+    A = (function() {
+        function A() {}
+
+        A.prototype.foo = function() {
+            return "hi";
+        };
+
+        return A;
+
+    })();
+
+    B = (function(_super) {
+        __extends(B, _super);
+
+        function B() {
+            return B.__super__.constructor.apply(this, arguments);
+        }
+
+        return B;
+
+    })(A);
+
+    var f = guard(object({},{"class": object({foo: fun([], Str)}, {})}), B);
+    var g = guard(object({},{"class": object({foo: fun([], Num)}, {})}), B);
+    ok(function(){ var o = new f();f.foo()});
+    raises(function(){ var o = new g();f.foo();});
 });

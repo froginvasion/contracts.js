@@ -533,6 +533,9 @@ object = (objContract, options = {}, name) ->
     if options.frozen is false and Object.isFrozen(obj)
       blame pos, neg, "[non-frozen object]", "[frozen object]", parents
 
+    if options.class and not options.class instanceof Contract
+      _blame pos, neg, "class option isnt a contract", parents
+
     # do some cleaning of the object contract...
     # in particular wrap all object contract in a prop descriptor like object
     # for symmetry with user defined contract property
@@ -684,7 +687,11 @@ object = (objContract, options = {}, name) ->
         handler["construct"] = (target, args)->
           objProto = Object.create(op.prototype);
           instance = target.apply(objProto, args);
-          return (typeof instance is "object" and instance ) or objProto;
+          result =  (typeof instance is "object" and instance ) or objProto;
+          if options.class
+            options.class.check result, pos, neg, parents
+          else
+            result
         handler["apply"] = (target, thisArg, args)->
           target.apply thisArg, args
       catch e
@@ -692,12 +699,13 @@ object = (objContract, options = {}, name) ->
         op = Proxy.createFunction(handler, (args) ->
           obj.apply this, arguments
         , (args) ->
-          ###boundArgs = [].concat.apply([ null ], arguments)
-          bf = obj.bind.apply(obj, boundArgs)
-          new bf()###
           objProto = Object.create(op.prototype);
           instance = op.apply(objProto, arguments);
-          return (typeof instance is 'object' and instance ) or objProto;
+          result = (typeof instance is 'object' and instance ) or objProto;
+          if options.class
+            options.class.check result, pos, neg, parents
+          else
+            result
         )
     else
       proto = if obj is null then null else Object.getPrototypeOf obj
