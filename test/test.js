@@ -675,3 +675,24 @@ test("", function() {
     ok(function() { f2();});
     raises(function() { f2(2,3)});
 });
+
+module("Rest contract for functions");
+test("", function() {
+   var id = function(x){return x;};
+   var f = guard(fun([Num],Num, {rest: Str}), id);
+   var g= guard(fun([Num],Num), id);
+   raises(function() { g(2,"hi")});
+   ok(function() { f(2);});
+   ok(function() { f(2, "foo");});
+   ok(function() { f(2, "foo", "foo", "foo", "foo")});
+   raises(function() { f(2, true)});
+   raises(function() { f(2,2);});
+   raises(function() { f(2, "foo", "foo", 3, "foo")});
+
+    var h = guard(fun([opt(Num)], Num, {rest: Str}), id);
+    ok(function() { h(2)});
+    ok(function(){ h(2,"ho")});
+    raises(function() { h(true)});
+    ok(function() { h("ho")});
+    ok(function() { h("hi","ho", "ho")});
+});

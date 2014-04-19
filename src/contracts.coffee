@@ -305,6 +305,7 @@ fun = (dom, rng, options) ->
       pre: ({} -> Bool) - function to check preconditions
       post: ({} -> Bool) - function to check postconditions
       this: {...} - object contract to check 'this'
+      rest: Contract - this contract will be checked for all remaining arguments
     ###
     makeHandler = (dom, rng, options) ->
       functionHandler = ->
@@ -319,24 +320,46 @@ fun = (dom, rng, options) ->
             "precondition: " + options.pre.toString(),
             "[failed precondition]", parents
 
+        if options.rest? and not options.rest instanceof Contract
+          blame neg, pos,
+            "The rest contract that was supplied isn't a contract"
+        #rest contracts are always supposed to be optional!
+        if options.rest?.ctype is not "opt"
+          options.rest = root.opt(options.rest)
+
+
         # check all the arguments
         i = 0
         max_i = Math.max dom?.length, arguments.length
         if typeof dom?.length is 'number'
-          blameM neg, pos, "Too many arguments supplied to function", parents  if arguments.length > dom.length
+          blameM neg, pos, "Too many arguments supplied to function", parents  if arguments.length > dom.length and not options.rest
 
+        isrest = null
         while i < max_i
           # might pass through undefined which is fine (opt will take
           # care of it if the argument is actually optional)
           #
           # blame is reversed
-          checked = if dom[i]
-            dom[i].check arguments[i], neg, pos, parents, stack
-          else arguments[i]
+          if isrest
+            checked = options.rest.check arguments[i], neg, pos, parents, stack
+          else
+            if dom[i]?.ctype is "opt" and arguments[i] isnt undefined and options.rest?
+              try
+                checked = dom[i].check arguments[i], neg, pos, parents, stack
+              catch e
+                isrest = true
+                checked = options.rest.check arguments[i], neg, pos, parents, stack
+            else if not dom[i] and options.rest?
+              isrest = true
+              checked = options.rest.check arguments[i], neg, pos, parents, stack
+            else
+              checked = if dom[i]
+                dom[i].check arguments[i], neg, pos, parents, stack
+              else arguments[i]
           if i < arguments.length
             args[i] = checked
-          # assigning back to args since we might be wrapping functions/objects
-          # in delayed contracts
+            # assigning back to args since we might be wrapping functions/objects
+            # in delayed contracts
           i++
 
         if typeof rng is "function"
