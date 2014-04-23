@@ -663,35 +663,35 @@ test("extends works with object contracts", function(){
 
 module("Blame for too many arguments");
 test("", function() {
-    var id = function(x){return x;};
+    var id = function(x){return 2;};
     var f = guard(fun([Num],Num), id);
-    var f2 = guard(fun(opt(Num), Num), id);
+    var f2 = guard(fun([opt(Num)], Num), id);
     raises(function(){ f(2,3)});
-    ok(function() {f(2)});
-    ok(function(){ f2(2);});
-    ok(function() { f2();});
+    ok(f(2));
+    ok(f2(2));
+    ok(f2());
     raises(function() { f2(2,3)});
 });
 
 module("Rest contract for functions");
 test("", function() {
-   var id = function(x){return x;};
+   var id = function(x){return 2;};
    var f = guard(fun([Num],Num, {rest: Str}), id);
    var g= guard(fun([Num],Num), id);
    raises(function() { g(2,"hi")});
-   ok(function() { f(2);});
-   ok(function() { f(2, "foo");});
-   ok(function() { f(2, "foo", "foo", "foo", "foo")});
+   ok(f(2));
+   ok(f(2, "foo"));
+   ok(f(2, "foo", "foo", "foo", "foo"));
    raises(function() { f(2, true)});
    raises(function() { f(2,2);});
    raises(function() { f(2, "foo", "foo", 3, "foo")});
 
     var h = guard(fun([opt(Num)], Num, {rest: Str}), id);
-    ok(function() { h(2)});
-    ok(function(){ h(2,"ho")});
+    ok(h(2));
+    ok(h(2,"ho"));
     raises(function() { h(true)});
-    ok(function() { h("ho")});
-    ok(function() { h("hi","ho", "ho")});
+    ok(h("ho"));
+    ok(h("hi","ho", "ho"));
 });
 
 module("Object class contract");
@@ -701,13 +701,17 @@ test("", function() {
     Foo.prototype.hi = "ho";
 
     var f = guard(object({}, {"class": object({ hi: Str},{})}), Foo);
-    ok(function(){ var o = new f();o.hi;});
+    var o = new f();
+    ok(o.hi, "should not raise on hi");
+
     var h = guard(object({}, {"class": object({ hi: Num},{})}), Foo);
-    raises(function(){ var o = new h();o.hi;})
+    raises(function(){ var o = new h(); console.log(o.hi);});
 
     var Bar = function() { this.cid = "ho";};
     var g = guard(object({}, {"class": object({ cid: Str},{})}), Bar);
-    ok(function(){ var o = new g();g.cid;});
+
+    o = new g();
+    ok(o.cid, "cid should not raise");
 
     var k = guard(object({}, {"class": object({ cid: Str},{})}), Foo);
     raises(function(){ var o = new k();});
@@ -742,6 +746,60 @@ test("test coffeescript class inheritance", function() {
 
     var f = guard(object({},{"class": object({foo: fun([], Str)}, {})}), B);
     var g = guard(object({},{"class": object({foo: fun([], Num)}, {})}), B);
-    ok(function(){ var o = new f();f.foo()});
-    raises(function(){ var o = new g();f.foo();});
+    var o = new f();
+    ok(o.foo(), "should pass since it expects and return a string");
+    raises(function(){ var o = new g(); f.foo();}, "should raise since it returns string but expects num");
+});
+
+module("Overloaded contracts");
+
+test("basic overloaded function contracts", function(){
+    var c1 = fun([Str], Num);
+    var c2 = fun([Num], Str);
+
+    var ov = overload_fun(c1, c2);
+
+    var f = function() { return "foo";};
+    var g = function(){ return 2;};
+    var f2 = guard(ov, f);
+    var g2 = guard(ov, g);
+
+    raises(function(){f2("ho")}, "should not be ok, we have Str->Num that should match but returns Str");
+    ok(f2(2), "should be ok since Num-> Str");
+    ok(g2("foo"), "Str->Num g returns Num so ok");
+    raises(function(){g2(2)}, "Num-Str not ok since expects Str");
+
+    var k1 = fun([Str, Num], Num);
+    var k2 = fun([Str, Str], Num);
+    var oc = overload_fun(k1, k2);
+
+    var h = function() {return 2};
+    var hc = guard(oc, h);
+
+    ok(hc("foo", 2), "Str,Num->Num call with 2 arguments ok");
+    ok(hc("foo", "bar"), "Str,Str->Num call with 2 arguments ok");
+    raises(function(){ hc("foo", false)}, "called with wrong second argument");
+    raises(function(){ hc(2);}, "called with too few arguments");
+
+
+});
+
+test("basic overloaded function contracts with optional arguments", function(){
+    var c1 = fun([Str, opt(Num)], Num);
+    var c2 = fun([Str, opt(Str)], Num);
+    var oc = overload_fun(c1, c2);
+
+    var f = function(){return 2;};
+    var fc = guard(oc, f);
+
+    ok(fc("hi"), "passes with correct first argument");
+    ok(fc("hi",2), "passes with correct second optional argument Num");
+    ok(fc("hi","ho"), "passes with correct second optional argument Str");
+    raises(function(){fc("hi",false)}, "should fail with wrong optional argument Bool (should be either Str or Num)");
+    raises(function(){fc(false)}, "should fail with wrong nonoptional argument");
+    fc(false);
+});
+
+test("basic overloaded function contracts with rest contract", function(){
+
 });

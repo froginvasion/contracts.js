@@ -434,6 +434,93 @@ fun = (dom, rng, options) ->
     pOpt and pCDom and pNDom and (@callrng.equals(other.callrng)) and (@newrng.equals(other.newrng))
   c
 
+
+overload_fun = ->
+  args = Array::slice.call arguments
+  funs = []
+  cname = ""
+  i = 0
+  while i < args.length
+    c = args[i]
+    throw new Error "#{c} is not a function contract" if not c instanceof Contract or c.ctype isnt "fun"
+    funs.push args[i]
+    i++
+
+  for f in funs
+    cname += f.cname
+
+  getCalldom = (i)->
+    res = []
+    for f in @
+      res.push f.calldom[i]
+    res
+
+  getCallrng = ()->
+    res = []
+    for f in @
+      res.push f.callrng
+    res
+
+  remove = (from, to)->
+    rest = @.slice ((to or from) + 1 or @.length)
+    @.length = if from < 0 then @.length + from else from
+    @.push.apply(@, rest)
+
+
+
+  c = new Contract cname, "overloaded_fun", (f, name, pos, neg, parentKs, stack)->
+    localfuns = funs.slice(0)
+    parents = parentKs.slice(0)
+    handler = {}
+    handler["apply"] = (target, thisArg, args)->
+      #reset funs_ at each call
+      localfuns = funs.slice(0)
+      errors = []
+      i = 0
+      max_i = args.length
+      while i < max_i
+        res = []
+        current_arg = args[i]
+        for domcontract, key in getCalldom.call(localfuns, i)
+          try
+            arg = domcontract.check current_arg, pos, neg, parents, stack
+            res.push arg
+          catch e
+            errors.push e
+            delete localfuns[key]
+        i = i + 1
+
+      localfuns = localfuns.filter (e)-> e
+
+      if localfuns.length is 0
+        blameM pos, neg, "Overloaded contract failed! (dom)" + errors, parents
+
+      res = target.apply thisArg, res
+      callres = []
+      for rngcontract, key in getCallrng.call(localfuns)
+        try
+          rngres = rngcontract.check res, pos, neg, parents, stack
+          callres.push rngres
+        catch e
+          errors.push e
+          delete localfuns[key]
+
+      localfuns = localfuns.filter (e)-> e
+      if localfuns.length is 0
+        blame pos, neg, this, "Overloaded contract failed! (rng)" + errors, parents
+      res
+
+    p = Proxy(f, handler)
+    unproxy.set p, this
+    p
+
+  c.equals = (other)->
+    this is other
+  c
+
+
+
+
 ctor = (dom, rng, options) ->
   opt = Utils.merge options,
     newOnly: true
@@ -1019,6 +1106,7 @@ root.and       = and_
 root.opt       = opt
 root.guard     = guard
 root.extend    = extend
+root.overload_fun = overload_fun
 # utility functions
 
 # for use with commonjs.
