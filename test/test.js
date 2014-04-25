@@ -797,9 +797,30 @@ test("basic overloaded function contracts with optional arguments", function(){
     ok(fc("hi","ho"), "passes with correct second optional argument Str");
     raises(function(){fc("hi",false)}, "should fail with wrong optional argument Bool (should be either Str or Num)");
     raises(function(){fc(false)}, "should fail with wrong nonoptional argument");
-    fc(false);
 });
 
-test("basic overloaded function contracts with rest contract", function(){
+test("higher order overloaded contracts", function(){
+
+    var c1 = fun([fun([Str],Num)], Any);
+    var c2 = fun([fun([Num],Str)], Any);
+    var oc = overload_fun(c1, c2);
+
+    var f = function(h) { h(true)};
+    var givesNum = function() { return 42;};
+    var givesStr = function(){ return "foo"};
+    var id = function (x) { return x};
+    var g = function(h) { return h("foobar")};
+    var h = function(h) { return h(2);};
+
+    var f1 = guard(oc, f);
+    var f2 = guard(oc, g);
+    var f3 = guard(oc, h);
+
+    raises(function(){f1(id);});
+    raises(function(){f2(givesStr)});
+    ok(f2(givesNum));
+    ok(f3(givesStr));
+    raises(function(){ f3(givesNum) });
+
 
 });

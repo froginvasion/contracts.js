@@ -435,11 +435,20 @@ fun = (dom, rng, options) ->
   c
 
 
-overload_fun = ->
+overload_fun = (contractParents, cb)->
   args = Array::slice.call arguments
   funs = []
   cname = ""
   i = 0
+  if Array.isArray contractParents
+    args = Array::slice.call args, 1, args.length
+  else
+    contractParents = null
+  if typeof cb is "function"
+    args = Array::slice.call args, 1, args.length
+  else
+    cb = null
+
   while i < args.length
     c = args[i]
     throw new Error "#{c} is not a function contract" if not c instanceof Contract or c.ctype isnt "fun"
@@ -452,42 +461,85 @@ overload_fun = ->
   getCalldom = (i)->
     res = []
     for f in @
-      res.push f.calldom[i]
+      res.push {"contract": f.calldom[i], "parent": f}
     res
 
-  getCallrng = ()->
+  getCallrng = ->
     res = []
     for f in @
       res.push f.callrng
     res
 
-  remove = (from, to)->
-    rest = @.slice ((to or from) + 1 or @.length)
-    @.length = if from < 0 then @.length + from else from
-    @.push.apply(@, rest)
+  isFun = (k)->
+    return true if k.ctype is "fun"
+    return true if k.ctype is "opt" and k.k.ctype is "fun"
+    false
+
+  isCheck = (k)->
+    return true if k.ctype is "check"
+    return true if k.ctype is "opt" and k.k.ctype is "check"
+    false
+
+  isObject = (k)->
+    return true if k.ctype is "object"
+    return true if k.ctype is "opt" and k.k.ctype is "object"
+    false
+
+  isDelayedContract = (k)->
+    return true if isFun(k) or isObject(k)
+    false
 
 
+  blameOrThrow = (fns, pos, neg, errors, parents)->
+    if fns.length is 0
+      if contractParents?
+        parent()
+      else
+        blameM pos, neg, "Overloaded contract failed!" + errors, parents
 
-  c = new Contract cname, "overloaded_fun", (f, name, pos, neg, parentKs, stack)->
+  c = new Contract cname, "overloaded_fun", (f, pos, neg, parentKs, stack)->
     localfuns = funs.slice(0)
     parents = parentKs.slice(0)
     handler = {}
+
     handler["apply"] = (target, thisArg, args)->
-      #reset funs_ at each call
+      #reset at each call
       localfuns = funs.slice(0)
       errors = []
+      new_arguments = []
+      cb = (k)->
+        idx = localfuns.indexOf k.parent
+        delete localfuns[idx]
+        localfuns.filter (e)-> e
+        blameOrThrow localfuns, pos, neg, errors, parents
+
       i = 0
       max_i = args.length
       while i < max_i
-        res = []
+
         current_arg = args[i]
-        for domcontract, key in getCalldom.call(localfuns, i)
+        delayed_ks = []
+        domcontracts = getCalldom.call(localfuns, i)
+
+        for domcontract in domcontracts
           try
-            arg = domcontract.check current_arg, pos, neg, parents, stack
-            res.push arg
+            if isDelayedContract domcontract.contract
+              delayed_ks.push domcontract.contract
+            else
+              domcontract.contract.check current_arg, pos, neg, parents, stack
           catch e
             errors.push e
-            delete localfuns[key]
+            idx = localfuns.indexOf domcontract.parent
+            delete localfuns[idx]
+            if contractParents?
+              p = contractParents.filter (e)-> e.contract is domcontract.parent
+              cb p[0] if p.length is 0
+
+        if delayed_ks.length is 0
+          new_arguments[i] = current_arg
+        else
+          newK = overload_fun.apply(null, [].concat([domcontracts],delayed_ks))
+          new_arguments[i] = newK.check current_arg, neg, pos, parents, stack
         i = i + 1
 
       localfuns = localfuns.filter (e)-> e
@@ -495,7 +547,7 @@ overload_fun = ->
       if localfuns.length is 0
         blameM pos, neg, "Overloaded contract failed! (dom)" + errors, parents
 
-      res = target.apply thisArg, res
+      res = target.apply thisArg, new_arguments
       callres = []
       for rngcontract, key in getCallrng.call(localfuns)
         try
@@ -508,12 +560,14 @@ overload_fun = ->
       localfuns = localfuns.filter (e)-> e
       if localfuns.length is 0
         blame pos, neg, this, "Overloaded contract failed! (rng)" + errors, parents
+
       res
 
     p = Proxy(f, handler)
     unproxy.set p, this
     p
 
+  c.parent
   c.equals = (other)->
     this is other
   c
