@@ -435,7 +435,7 @@ fun = (dom, rng, options) ->
   c
 
 
-overload_fun = (contractParents, cb)->
+overload_fun = (contractParents, blameparents)->
   args = Array::slice.call arguments
   funs = []
   cname = ""
@@ -444,10 +444,10 @@ overload_fun = (contractParents, cb)->
     args = Array::slice.call args, 1, args.length
   else
     contractParents = null
-  if typeof cb is "function"
+  if typeof blameparents is "function"
     args = Array::slice.call args, 1, args.length
   else
-    cb = null
+    blameparents = null
 
   while i < args.length
     c = args[i]
@@ -467,7 +467,7 @@ overload_fun = (contractParents, cb)->
   getCallrng = ->
     res = []
     for f in @
-      res.push f.callrng
+      res.push {"contract": f.callrng, "parent": f}
     res
 
   isFun = (k)->
@@ -490,28 +490,32 @@ overload_fun = (contractParents, cb)->
     false
 
 
-  blameOrThrow = (fns, pos, neg, errors, parents)->
+  blameOrThrow = (fns, k, c, pos, neg, errors, parents)->
     if fns.length is 0
       if contractParents?
-        parent()
+        cb(k)
       else
-        blameM pos, neg, "Overloaded contract failed!" + errors, parents
+        blame pos, neg, c, c.cname, parents
 
   c = new Contract cname, "overloaded_fun", (f, pos, neg, parentKs, stack)->
     localfuns = funs.slice(0)
     parents = parentKs.slice(0)
     handler = {}
 
-    handler["apply"] = (target, thisArg, args)->
+    makeHandler = (target, thisArg, args)->
+      if args is undefined
+        args = thisArg
       #reset at each call
       localfuns = funs.slice(0)
       errors = []
       new_arguments = []
+
       cb = (k)->
         idx = localfuns.indexOf k.parent
-        delete localfuns[idx]
-        localfuns.filter (e)-> e
-        blameOrThrow localfuns, pos, neg, errors, parents
+        k = localfuns[idx]
+        if idx > -1
+          localfuns.splice(idx, 1)
+        blameOrThrow localfuns, k, c, pos, neg, errors, parents
 
       i = 0
       max_i = args.length
@@ -533,41 +537,61 @@ overload_fun = (contractParents, cb)->
             delete localfuns[idx]
             if contractParents?
               p = contractParents.filter (e)-> e.contract is domcontract.parent
-              cb p[0] if p.length is 0
+              blameparents(p[0]) if p.length isnt 0
+
 
         if delayed_ks.length is 0
           new_arguments[i] = current_arg
         else
-          newK = overload_fun.apply(null, [].concat([domcontracts],delayed_ks))
+          newK = overload_fun.apply(null, [].concat([domcontracts, cb], delayed_ks))
           new_arguments[i] = newK.check current_arg, neg, pos, parents, stack
         i = i + 1
 
       localfuns = localfuns.filter (e)-> e
-
-      if localfuns.length is 0
-        blameM pos, neg, "Overloaded contract failed! (dom)" + errors, parents
+      if localfuns.length is 0 and not contractParents?
+        blame pos, neg, c, c.cname, parents
 
       res = target.apply thisArg, new_arguments
-      callres = []
-      for rngcontract, key in getCallrng.call(localfuns)
-        try
-          rngres = rngcontract.check res, pos, neg, parents, stack
-          callres.push rngres
-        catch e
-          errors.push e
-          delete localfuns[key]
 
       localfuns = localfuns.filter (e)-> e
-      if localfuns.length is 0
-        blame pos, neg, this, "Overloaded contract failed! (rng)" + errors, parents
+      if localfuns.length is 0 and not contractParents?
+        blame pos, neg, c, c.cname, parents
 
+      delayed_rng = []
+      rngcontracts = getCallrng.call(localfuns)
+      for rngcontract in rngcontracts
+        try
+          if isDelayedContract rngcontract.contract
+            delayed_rng.push rngcontract.contract
+          else
+            rngcontract.contract.check res, pos, neg, parents, stack
+        catch e
+          idx = localfuns.indexOf rngcontract.parent
+          delete localfuns[idx]
+          if contractParents?
+            p = contractParents.filter (e)-> e.contract is rngcontract.parent
+            blameparents(p[0]) if p.length isnt 0
+
+
+      if delayed_rng.length isnt 0
+        newK = overload_fun.apply(null, [rngcontract, cb], delayed_rng)
+        res = newK.check res, pos, neg, parents, stack
+
+      localfuns = localfuns.filter (e)-> e
+      if localfuns.length is 0 and not contractParents?
+        blame pos, neg, c, c.cname, parents
       res
+
+    handler["apply"] = (target, thisArg, args)->
+      makeHandler(target, thisArg, args)
+
+    handler["construct"] = (target, args)->
+      makeHandler(target, args)
 
     p = Proxy(f, handler)
     unproxy.set p, this
     p
 
-  c.parent
   c.equals = (other)->
     this is other
   c

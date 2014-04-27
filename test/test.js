@@ -816,6 +816,7 @@ test("higher order overloaded contracts", function(){
     var f2 = guard(oc, g);
     var f3 = guard(oc, h);
 
+    //f1(id);
     raises(function(){f1(id);});
     raises(function(){f2(givesStr)});
     ok(f2(givesNum));
