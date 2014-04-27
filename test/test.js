@@ -823,5 +823,18 @@ test("higher order overloaded contracts", function(){
     ok(f3(givesStr));
     raises(function(){ f3(givesNum) });
 
+    var c3 = fun([Any], fun([Str],Str));
+    var c4 = fun([Any], fun([Num], Str));
+    var oc2 = overload_fun(c3, c4);
+
+    var j = guard(oc2,function(){ return givesNum;});
+    raises(function() {j()(2); });
+    raises(function() {j()(true)});
+    var k = guard(oc2, function(){ return givesStr});
+    ok(k()(2));
+    ok(k()("hi"));
+    raises(function() {k()(true)});
+
+
 
 });

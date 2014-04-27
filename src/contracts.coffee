@@ -518,7 +518,13 @@ overload_fun = (contractParents, blameparents)->
         blameOrThrow localfuns, k, c, pos, neg, errors, parents
 
       i = 0
-      max_i = args.length
+      #remove all with too many arguments
+      max_i = Math.max args.length, Math.max.apply(localfuns.map (f)-> f.calldom.length)
+      for f, k in localfuns
+        if args.length > f.calldom?.length
+          delete localfuns[k]
+      localfuns = localfuns.filter (e)-> e
+
       while i < max_i
 
         current_arg = args[i]
@@ -574,7 +580,7 @@ overload_fun = (contractParents, blameparents)->
 
 
       if delayed_rng.length isnt 0
-        newK = overload_fun.apply(null, [rngcontract, cb], delayed_rng)
+        newK = overload_fun.apply(null, [].concat([rngcontracts, cb], delayed_rng))
         res = newK.check res, pos, neg, parents, stack
 
       localfuns = localfuns.filter (e)-> e
