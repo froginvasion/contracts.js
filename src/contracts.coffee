@@ -438,7 +438,7 @@ fun = (dom, rng, options) ->
 overload_fun = (contractParents, blameparents)->
   args = Array::slice.call arguments
   funs = []
-  cname = ""
+  cname = "overloaded contract: "
   i = 0
   if Array.isArray contractParents
     args = Array::slice.call args, 1, args.length
@@ -451,7 +451,7 @@ overload_fun = (contractParents, blameparents)->
 
   while i < args.length
     c = args[i]
-    throw new Error "#{c} is not a function contract" if not c instanceof Contract or c.ctype isnt "fun"
+    throw new Error "#{c} is not a function contract" if not (c instanceof Contract and (c.ctype is "fun" or c.ctype is "object"))
     funs.push args[i]
     i++
 
@@ -500,11 +500,19 @@ overload_fun = (contractParents, blameparents)->
   c = new Contract cname, "overloaded_fun", (f, pos, neg, parentKs, stack)->
     localfuns = funs.slice(0)
     parents = parentKs.slice(0)
-    handler = {}
+    if typeof Proxy is "function"
+      handler = {}
+    else
+      handler = idHandler(f)
 
-    makeHandler = (target, thisArg, args)->
-      if args is undefined
-        args = thisArg
+    makeHandler = (nondirect)-> (target, thisArg, args)->
+      if nondirect
+        args = Array::slice.call(arguments)
+        target = f
+        thisArg = this
+      else
+        if args is undefined
+          args = thisArg
       #reset at each call
       localfuns = funs.slice(0)
       errors = []
@@ -520,8 +528,8 @@ overload_fun = (contractParents, blameparents)->
       i = 0
       #remove all with too many arguments
       max_i = Math.max args.length, Math.max.apply(localfuns.map (f)-> f.calldom.length)
-      for f, k in localfuns
-        if args.length > f.calldom?.length
+      for func, k in localfuns
+        if args.length > func.calldom?.length
           delete localfuns[k]
       localfuns = localfuns.filter (e)-> e
 
@@ -589,12 +597,21 @@ overload_fun = (contractParents, blameparents)->
       res
 
     handler["apply"] = (target, thisArg, args)->
-      makeHandler(target, thisArg, args)
+      makeHandler(false)(target, thisArg, args)
 
     handler["construct"] = (target, args)->
-      makeHandler(target, args)
+      makeHandler(false)(target, args)
 
-    p = Proxy(f, handler)
+    handler["defineProperty"] = ->
+
+    handler["delete"] = ->
+
+    handler["get"] = ->
+
+    try
+      p = Proxy(f, handler)
+    catch e
+      p = Proxy.createFunction(handler, makeHandler(true), makeHandler(true))
     unproxy.set p, this
     p
 
