@@ -616,7 +616,7 @@ overload_fun = (contractParents, blameparents)->
 
       for oc, key in ocs
         try
-          ocproxy = oc.check f, pos, neg, parents
+          ocproxy = oc.check Object.create(f), pos, neg, parents
           Object.defineProperty ocproxy, name, desc
         catch e
           delete ocs[key]
@@ -631,7 +631,7 @@ overload_fun = (contractParents, blameparents)->
       return delete f[name] if ocs.length is 0
       for oc, key in ocs
         try
-          ocproxy = oc.check f, pos, neg parents
+          ocproxy = oc.check Object.create(f), pos, neg parents
           delete ocproxy[name]
         catch e
           delete ocs[key]
@@ -646,7 +646,7 @@ overload_fun = (contractParents, blameparents)->
       return f && f[name] if ocs.length is 0
       for oc, key in ocs
         try
-          ocproxy = oc.check f, pos, neg, parents
+          ocproxy = oc.check Object.create(f), pos, neg, parents
           val = ocproxy[name]
         catch e
           delete ocs[key]
@@ -661,7 +661,7 @@ overload_fun = (contractParents, blameparents)->
       return receiver[name] = val if ocs.length is 0
       for oc, key in ocs
         try
-          ocproxy = oc.check receiver, pos, neg, parents
+          ocproxy = oc.check Object.create(f), pos, neg, parents
           ocproxy.name = val
         catch e
           delete ocs[key]
@@ -869,6 +869,7 @@ object = (objContract, options = {}, name) ->
             enumerable: true
         else
           if options.warn
+            delete @oc[prop]
             console.log "WARNING: [missing property: #{prop}]", parents
           else
             blame pos, neg, this, "[missing property: #{prop}]", parents
