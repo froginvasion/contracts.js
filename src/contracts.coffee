@@ -458,6 +458,13 @@ overload_fun = (contractParents, blameparents)->
   for f in funs
     cname += f.cname
 
+  getObjectContracts = ->
+    res = []
+    for el in @
+      if el.ctype is "object"
+        res.push el
+    res
+
   getCalldom = (i)->
     res = []
     for f in @
@@ -602,16 +609,76 @@ overload_fun = (contractParents, blameparents)->
     handler["construct"] = (target, args)->
       makeHandler(false)(target, args)
 
-    handler["defineProperty"] = ->
+    handler["defineProperty"] = (name, desc) ->
+      localfuns = funs.slice(0)
+      ocs = getObjectContracts(localfuns)
+      return Object.defineProperty f, name, desc if ocs.length is 0
 
-    handler["delete"] = ->
+      for oc, key in ocs
+        try
+          ocproxy = oc.check f, pos, neg, parents
+          Object.defineProperty ocproxy, name, desc
+        catch e
+          delete ocs[key]
+      ocs = ocs.filter (e)-> e
+      if ocs.length is 0
+        blame pos, neg, c, c.name, parents
+      Object.defineProperty f, name, desc
 
-    handler["get"] = ->
+    handler["delete"] = (name)->
+      localfuns = funs.slice(0)
+      ocs = getObjectContracts(localfuns)
+      return delete f[name] if ocs.length is 0
+      for oc, key in ocs
+        try
+          ocproxy = oc.check f, pos, neg parents
+          delete ocproxy[name]
+        catch e
+          delete ocs[key]
+      ocs = ocs.filter (e)-> e
+      if ocs.length is 0
+        blame pos, neg, c, c.name, parents
+      delete f[name]
+
+    handler["get"] = (receiver, name)->
+      localfuns = funs.slice(0)
+      ocs = getObjectContracts.call localfuns
+      return f && f[name] if ocs.length is 0
+      for oc, key in ocs
+        try
+          ocproxy = oc.check f, pos, neg, parents
+          val = ocproxy[name]
+        catch e
+          delete ocs[key]
+      ocs = ocs.filter (e)-> e
+      if ocs.length is 0
+        blame pos, neg, c, c.name, parents
+      f && f[name]
+
+    handler["set"] = (receiver, name, val)->
+      localfuns = funs.slice(0)
+      ocs = getObjectContracts.call localfuns
+      return receiver[name] = val if ocs.length is 0
+      for oc, key in ocs
+        try
+          ocproxy = oc.check receiver, pos, neg, parents
+          ocproxy.name = val
+        catch e
+          delete ocs[key]
+      ocs = ocs.filter (e)-> e
+      if ocs.length is 0
+        blame pos, neg, c, c.name, parents
+      receiver.name = val
+
 
     try
       p = Proxy(f, handler)
     catch e
-      p = Proxy.createFunction(handler, makeHandler(true), makeHandler(true))
+      if typeof f is "function"
+        p = Proxy.createFunction(handler, makeHandler(true), makeHandler(true))
+      else
+        proto = if f is null then null else Object.getPrototypeOf f
+        p = Proxy.create(handler, proto)
     unproxy.set p, this
     p
 
@@ -801,7 +868,10 @@ object = (objContract, options = {}, name) ->
             configurable: true
             enumerable: true
         else
-          blame pos, neg, this, "[missing property: #{prop}]", parents
+          if options.warn
+            console.log "WARNING: [missing property: #{prop}]", parents
+          else
+            blame pos, neg, this, "[missing property: #{prop}]", parents
 
     # check object invariant
     if options.invariant

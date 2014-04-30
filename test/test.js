@@ -834,7 +834,20 @@ test("higher order overloaded contracts", function(){
     ok(k()(2));
     ok(k()("hi"));
     raises(function() {k()(true)});
+});
 
+test("object contracts in overloaded contracts", function(){
+    var c1 = fun([object({"foo": Str})], Any);
+    var c2 = fun([object({"bar": Str})], Any);
+    var oc = overload_fun(c1, c2);
 
+    var f = function(o){ return o.foo; };
+    var f1 = guard(oc, f);
+    var g = function(o) { return o.bar; };
+    var g1 = guard(oc, g);
 
+    raises(function(){ f1({"foo": 2});}, "should fail since prop foo is Num not Str");
+    ok(f1({"foo": "hi"}), "should be ok since prop foo is Str expected Str");
+    raises(function(){ g1({"bar": 2})});
+    ok(g1({"bar": "foo"}));
 });
