@@ -868,7 +868,7 @@ object = (objContract, options = {}, name) ->
             configurable: true
             enumerable: true
         else
-          if options.warn
+          if options.forgiving
             delete @oc[prop]
             console.log "WARNING: [missing property: #{prop}]", parents
           else
