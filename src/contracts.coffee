@@ -868,8 +868,12 @@ object = (objContract, options = {}, name) ->
             configurable: true
             enumerable: true
         else
-          if options.forgiving
-            delete @oc[prop]
+          if options.silent
+            @oc[prop] =
+              value: opt(value)
+              writable: true
+              configurable: true
+              enumerable: true
             console.log "WARNING: [missing property: #{prop}]", parents
           else
             blame pos, neg, this, "[missing property: #{prop}]", parents

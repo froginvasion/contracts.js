@@ -851,3 +851,17 @@ test("object contracts in overloaded contracts", function(){
     raises(function(){ g1({"bar": 2})});
     ok(g1({"bar": "foo"}));
 });
+
+module("object silent mode");
+
+test("test object contract silent mode", function(){
+    // we allow missing on creation, then it's turned into an optional contract
+    var c = object({"foo": Str}, {silent: true});
+    var c2 = object({"foo": Str});
+    ok(guard(c, {}));
+    raises(function(){ guard(c2, {})});
+    var f = guard(c, {});
+    ok(f.foo = "hi");
+    raises(function() {f.foo = 3; });
+
+});
