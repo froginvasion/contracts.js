@@ -714,7 +714,13 @@ test("", function() {
     ok(o.cid, "cid should not raise");
 
     var k = guard(object({}, {"class": object({ cid: Str},{})}), Foo);
-    raises(function(){ var o = new k();});
+    raises(function(){ var o = new k();o.cid = 2;});
+    o = new k();
+    ok(typeof o.cid === 'undefined', "cid should not raise since optional");
+    //ok because it's now optional (we can't know which properties will exist at runtime and which wont
+    //however:
+    raises(function(){o.cid = 2});
+    ok(o.cid = "hi");
 });
 
 test("test coffeescript class inheritance", function() {
@@ -733,6 +739,8 @@ test("test coffeescript class inheritance", function() {
 
     })();
 
+    A = guard(object({}, {"class": object({foo: fun([Num], Str)}, {})}), A);
+
     B = (function(_super) {
         __extends(B, _super);
 
@@ -744,11 +752,14 @@ test("test coffeescript class inheritance", function() {
 
     })(A);
 
-    var f = guard(object({},{"class": object({foo: fun([], Str)}, {})}), B);
-    var g = guard(object({},{"class": object({foo: fun([], Num)}, {})}), B);
-    var o = new f();
-    ok(o.foo(), "should pass since it expects and return a string");
-    raises(function(){ var o = new g(); f.foo();}, "should raise since it returns string but expects num");
+    var o = new B();
+    raises(function() {o.foo() }, "should raise since it expects a num");
+    ok(o.foo(2), "should raise since it expects a num");
+
+
+    o = new A();
+    raises(function(){o.foo("hi")});
+    ok(o.foo(2));
 });
 
 module("Overloaded contracts");

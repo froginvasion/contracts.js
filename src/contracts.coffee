@@ -791,6 +791,13 @@ object = (objContract, options = {}, name) ->
     if options.class and not options.class instanceof Contract
       _blame pos, neg, "class option isnt a contract", parents
 
+    if @oc["prototype"] isnt undefined
+      console.log "WARNING: using contract on prototype: use supported 'class' in options object"
+    else if options.class
+      #we set it to silent because we might have properties in the prototype that don't exist but do exist on an instance
+      options.class.raw_options.silent = true
+      @oc["prototype"] = options.class
+
     # do some cleaning of the object contract...
     # in particular wrap all object contract in a prop descriptor like object
     # for symmetry with user defined contract property
@@ -877,6 +884,8 @@ object = (objContract, options = {}, name) ->
             console.log "WARNING: [missing property: #{prop}]", parents
           else
             blame pos, neg, this, "[missing property: #{prop}]", parents
+
+
 
     # check object invariant
     if options.invariant
