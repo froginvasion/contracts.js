@@ -963,7 +963,7 @@ object = (objContract, options = {}, name) ->
       try
         op = new Proxy(obj, handler)
         handler["construct"] = (target, args)->
-          objProto = Object.create(op.prototype);
+          objProto = Object.create(obj.prototype);
           instance = target.apply(objProto, args);
           result =  (typeof instance is "object" and instance ) or objProto;
           if options.class
@@ -977,7 +977,7 @@ object = (objContract, options = {}, name) ->
         op = Proxy.createFunction(handler, (args) ->
           obj.apply this, arguments
         , (args) ->
-          objProto = Object.create(op.prototype);
+          objProto = Object.create(obj.prototype);
           instance = op.apply(objProto, arguments);
           result = (typeof instance is 'object' and instance ) or objProto;
           if options.class
