@@ -451,7 +451,7 @@ overload_fun = (contractParents, blameparents)->
 
   while i < args.length
     c = args[i]
-    throw new Error "#{c} is not a function contract" if not (c instanceof Contract and (c.ctype is "fun" or c.ctype is "object"))
+    throw new Error "#{c} is not a function contract" if not isDelayedContract(c)
     funs.push args[i]
     i++
 
