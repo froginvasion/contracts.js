@@ -762,6 +762,39 @@ test("test coffeescript-like class inheritance", function() {
     ok(o.foo(2));
 });
 
+test("instanceof with inheritance", function() {
+    var __hasProp = {}.hasOwnProperty,
+        __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+    var A = (function() {
+        var A = function() {};
+
+        A.prototype.hi = function(){};
+
+        return A;
+    })();
+
+    var B = (function(__super__) {
+
+        var B = function() { __super__.constructor.apply(this, arguments);};
+
+        B.prototype.hi = function(){};
+
+        return B;
+
+    })(A);
+
+    ProxyA = guard(object({}, {"class": object({})}), A);
+    ProxyB = guard(object({}, {"class": object({})}), B);
+
+    var a = new ProxyA();
+    var b = new ProxyB();
+    equal(a instanceof A, true);
+    equal(b instanceof B, true);
+
+
+});
+
 test("self contracts with class contracts", function() {
 
 });

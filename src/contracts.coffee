@@ -964,7 +964,7 @@ object = (objContract, options = {}, name) ->
         op = new Proxy(obj, handler)
         handler["construct"] = (target, args)->
           objProto = Object.create(obj.prototype);
-          instance = target.apply(objProto, args);
+          instance = obj.apply(objProto, args);
           result =  (typeof instance is "object" and instance ) or objProto;
           if options.class
             options.class.check result, pos, neg, parents
@@ -978,7 +978,7 @@ object = (objContract, options = {}, name) ->
           obj.apply this, arguments
         , (args) ->
           objProto = Object.create(obj.prototype);
-          instance = op.apply(objProto, arguments);
+          instance = obj.apply(objProto, arguments);
           result = (typeof instance is 'object' and instance ) or objProto;
           if options.class
             options.class.check result, pos, neg, parents
