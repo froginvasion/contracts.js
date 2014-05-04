@@ -662,7 +662,7 @@ overload_fun = (contractParents, blameparents)->
       localfuns = funs.slice(0)
       ocs = getObjectContracts.call localfuns
       if ocs.length is 0
-        receiver[name] = val
+        f[name] = val
         return true
       for oc, key in ocs
         try
@@ -673,7 +673,7 @@ overload_fun = (contractParents, blameparents)->
       ocs = ocs.filter (e)-> e
       if ocs.length is 0
         blame pos, neg, c, c.name, parents
-      receiver[name] = val
+      f[name] = val
       true
 
 
