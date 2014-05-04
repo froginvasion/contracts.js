@@ -628,7 +628,9 @@ overload_fun = (contractParents, blameparents)->
     handler["delete"] = (name)->
       localfuns = funs.slice(0)
       ocs = getObjectContracts(localfuns)
-      return delete f[name] if ocs.length is 0
+      if ocs.length is 0
+        res = delete f[name] if ocs.length is 0
+        return res
       for oc, key in ocs
         try
           ocproxy = oc.check Object.create(f), pos, neg parents
@@ -659,7 +661,9 @@ overload_fun = (contractParents, blameparents)->
     handler["set"] = (receiver, name, val)->
       localfuns = funs.slice(0)
       ocs = getObjectContracts.call localfuns
-      return receiver[name] = val if ocs.length is 0
+      if ocs.length is 0
+        receiver[name] = val
+        return true
       for oc, key in ocs
         try
           ocproxy = oc.check Object.create(f), pos, neg, parents
