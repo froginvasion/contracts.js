@@ -332,7 +332,8 @@ fun = (dom, rng, options) ->
         i = 0
         max_i = Math.max dom?.length, arguments.length
         if typeof dom?.length is 'number'
-          blameM neg, pos, "Too many arguments supplied to function", parents  if arguments.length > dom.length and not options.rest
+          #blameM neg, pos, "Too many arguments supplied to function", parents
+          console.log("WARNING: #{f} was applied with too many arguments. expected: #{dom.length} actual: #{arguments.length}. Dom contracts: #{dom}") if arguments.length > dom.length and not options.rest
 
         isrest = null
         while i < max_i
