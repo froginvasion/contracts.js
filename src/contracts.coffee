@@ -449,6 +449,25 @@ overload_fun = (contractParents, blameparents)->
   else
     blameparents = null
 
+  isFun = (k)->
+    return true if k.ctype is "fun"
+    return true if k.ctype is "opt" and k.k.ctype is "fun"
+    false
+
+  isCheck = (k)->
+    return true if k.ctype is "check"
+    return true if k.ctype is "opt" and k.k.ctype is "check"
+    false
+
+  isObject = (k)->
+    return true if k.ctype is "object"
+    return true if k.ctype is "opt" and k.k.ctype is "object"
+    false
+
+  isDelayedContract = (k)->
+    return true if isFun(k) or isObject(k)
+    false
+
   while i < args.length
     c = args[i]
     throw new Error "#{c} is not a function contract" if not isDelayedContract(c)
@@ -476,25 +495,6 @@ overload_fun = (contractParents, blameparents)->
     for f in @
       res.push {"contract": f.callrng, "parent": f} if f isnt undefined
     res
-
-  isFun = (k)->
-    return true if k.ctype is "fun"
-    return true if k.ctype is "opt" and k.k.ctype is "fun"
-    false
-
-  isCheck = (k)->
-    return true if k.ctype is "check"
-    return true if k.ctype is "opt" and k.k.ctype is "check"
-    false
-
-  isObject = (k)->
-    return true if k.ctype is "object"
-    return true if k.ctype is "opt" and k.k.ctype is "object"
-    false
-
-  isDelayedContract = (k)->
-    return true if isFun(k) or isObject(k)
-    false
 
 
   blameOrThrow = (fns, k, c, pos, neg, errors, parents)->
