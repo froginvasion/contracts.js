@@ -638,7 +638,8 @@ overload_fun = (contractParents, blameparents)->
       ocs = ocs.filter (e)-> e
       if ocs.length is 0
         blame pos, neg, c, c.name, parents
-      delete f[name]
+      res = delete f[name]
+      res
 
     handler["get"] = (receiver, name)->
       localfuns = funs.slice(0)
@@ -668,7 +669,8 @@ overload_fun = (contractParents, blameparents)->
       ocs = ocs.filter (e)-> e
       if ocs.length is 0
         blame pos, neg, c, c.name, parents
-      receiver.name = val
+      receiver[name] = val
+      true
 
 
     try
