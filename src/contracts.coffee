@@ -468,13 +468,13 @@ overload_fun = (contractParents, blameparents)->
   getCalldom = (i)->
     res = []
     for f in @
-      res.push {"contract": f.calldom[i], "parent": f}
+      res.push {"contract": f.calldom[i], "parent": f} if f isnt undefined
     res
 
   getCallrng = ->
     res = []
     for f in @
-      res.push {"contract": f.callrng, "parent": f}
+      res.push {"contract": f.callrng, "parent": f} if f isnt undefined
     res
 
   isFun = (k)->

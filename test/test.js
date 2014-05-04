@@ -695,7 +695,7 @@ test("", function() {
 });
 
 module("Object class contract");
-test("", function() {
+test("test basic class contracts", function() {
 
     var Foo = function(){};
     Foo.prototype.hi = "ho";
@@ -723,7 +723,7 @@ test("", function() {
     ok(o.cid = "hi");
 });
 
-test("test coffeescript class inheritance", function() {
+test("test coffeescript-like class inheritance", function() {
     var A, B,
         __hasProp = {}.hasOwnProperty,
         __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
@@ -760,6 +760,10 @@ test("test coffeescript class inheritance", function() {
     o = new A();
     raises(function(){o.foo("hi")});
     ok(o.foo(2));
+});
+
+test("self contracts with class contracts", function() {
+
 });
 
 module("Overloaded contracts");
