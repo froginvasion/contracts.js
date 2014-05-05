@@ -332,8 +332,11 @@ fun = (dom, rng, options) ->
         i = 0
         max_i = Math.max dom?.length, arguments.length
         if typeof dom?.length is 'number'
-          #blameM neg, pos, "Too many arguments supplied to function", parents
-          console.log("WARNING: #{f} was applied with too many arguments. expected: #{dom.length} actual: #{arguments.length}. Dom contracts: #{dom}") if arguments.length > dom.length and not options.rest
+          if arguments.length > dom.length and not options.rest
+            if options.aritycheck
+              blameM neg, pos, "Too many arguments supplied to function", parents
+            else
+              console.log("WARNING: #{f} was applied with too many arguments. expected: #{dom.length} actual: #{arguments.length}. Dom contracts: #{dom}")
 
         isrest = null
         while i < max_i
@@ -758,6 +761,13 @@ object = (objContract, options = {}, name) ->
     #This test aims to differentiate between V8 in chrome and Gecko in Firefox.
     #Since the direct proxy approach doesn't require default handlers to be implemented, we omit the
     # idhandler in that case. Since in FF Proxy is a function and not in V8, this is how we do it.
+
+
+    if typeof obj is "function"
+      newobj = obj.bind({})
+      newobj.prototype = Object.create(obj.prototype)
+      obj = newobj
+
     if typeof Proxy isnt "function"
       handler = idHandler obj
     else
@@ -964,9 +974,12 @@ object = (objContract, options = {}, name) ->
       try
         op = new Proxy(obj, handler)
         handler["construct"] = (target, args)->
-          objProto = Object.create(obj.prototype);
+          boundArgs = [].concat.apply([{}], arguments)
+          bf = obj.bind.apply(obj, boundArgs)
+          result = new bf()
+          ###          objProto = Object.create(obj.prototype);
           instance = obj.apply(objProto, args);
-          result =  (typeof instance is "object" and instance ) or objProto;
+          result =  (typeof instance is "object" and instance ) or objProto;###
           if options.class
             options.class.check result, pos, neg, parents
           else
@@ -978,9 +991,12 @@ object = (objContract, options = {}, name) ->
         op = Proxy.createFunction(handler, (args) ->
           obj.apply this, arguments
         , (args) ->
-          objProto = Object.create(obj.prototype);
-          instance = obj.apply(objProto, arguments);
-          result = (typeof instance is 'object' and instance ) or objProto;
+          boundArgs = [].concat.apply([{}], arguments);
+          bf = obj.bind.apply(obj, boundArgs);
+          result = new bf();
+          ###          objProto = Object.create(obj.prototype);
+                    instance = obj.apply(objProto, arguments);
+                    result = (typeof instance is 'object' and instance ) or objProto;###
           if options.class
             options.class.check result, pos, neg, parents
           else

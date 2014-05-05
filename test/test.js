@@ -664,8 +664,8 @@ test("extends works with object contracts", function(){
 module("Blame for too many arguments");
 test("", function() {
     var id = function(x){return 2;};
-    var f = guard(fun([Num],Num), id);
-    var f2 = guard(fun([opt(Num)], Num), id);
+    var f = guard(fun([Num],Num, {aritycheck: true}), id);
+    var f2 = guard(fun([opt(Num)], Num, {aritycheck: true}), id);
     raises(function(){ f(2,3)});
     ok(f(2));
     ok(f2(2));
@@ -676,8 +676,8 @@ test("", function() {
 module("Rest contract for functions");
 test("", function() {
    var id = function(x){return 2;};
-   var f = guard(fun([Num],Num, {rest: Str}), id);
-   var g= guard(fun([Num],Num), id);
+   var f = guard(fun([Num],Num, {rest: Str, aritycheck: true}), id);
+   var g= guard(fun([Num],Num, {aritycheck: true}), id);
    raises(function() { g(2,"hi")});
    ok(f(2));
    ok(f(2, "foo"));
@@ -766,31 +766,43 @@ test("instanceof with inheritance", function() {
     var __hasProp = {}.hasOwnProperty,
         __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
-    var A = (function() {
-        var A = function() {};
 
-        A.prototype.hi = function(){};
+    var B = (function() {
 
-        return A;
-    })();
 
-    var B = (function(__super__) {
 
-        var B = function() { __super__.constructor.apply(this, arguments);};
+        var B = function() {
+
+        };
 
         B.prototype.hi = function(){};
 
         return B;
 
-    })(A);
+    })();
 
-    ProxyA = guard(object({}, {"class": object({})}), A);
+    var ProxyB;
+
     ProxyB = guard(object({}, {"class": object({})}), B);
 
-    var a = new ProxyA();
     var b = new ProxyB();
-    equal(a instanceof A, true);
     equal(b instanceof B, true);
+
+    //this is a subclass, of which we also expect the instanceof operator to give us true
+    var C = (function(_super) {
+        __extends(C, _super);
+
+        function C() {
+            return C.__super__.constructor.apply(this, arguments);
+        }
+
+        return C;
+
+    })(ProxyB);
+
+    var c = new C();
+    equal(c instanceof B, true);
+    equal(c instanceof C, true);
 
 
 });
