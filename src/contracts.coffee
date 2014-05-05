@@ -587,7 +587,8 @@ overload_fun = (contractParents, blameparents)->
       for rngcontract in rngcontracts
         try
           if isDelayedContract rngcontract.contract
-            delayed_rng.push rngcontract.contract
+            if not (domcontract.contract.ctype is "opt" and current_arg is undefined)
+              delayed_rng.push rngcontract.contract
           else
             rngcontract.contract.check res, pos, neg, parents, stack
         catch e
@@ -615,7 +616,7 @@ overload_fun = (contractParents, blameparents)->
 
     handler["defineProperty"] = (name, desc) ->
       localfuns = funs.slice(0)
-      ocs = getObjectContracts(localfuns)
+      ocs = getObjectContracts.call(localfuns)
       return Object.defineProperty f, name, desc if ocs.length is 0
 
       for oc, key in ocs
@@ -631,13 +632,13 @@ overload_fun = (contractParents, blameparents)->
 
     handler["delete"] = (name)->
       localfuns = funs.slice(0)
-      ocs = getObjectContracts(localfuns)
+      ocs = getObjectContracts.call(localfuns)
       if ocs.length is 0
         res = delete f[name] if ocs.length is 0
         return res
       for oc, key in ocs
         try
-          ocproxy = oc.check Object.create(f), pos, neg parents
+          ocproxy = oc.check Object.create(f), pos, neg, parents
           delete ocproxy[name]
         catch e
           delete ocs[key]
@@ -763,9 +764,12 @@ object = (objContract, options = {}, name) ->
     # idhandler in that case. Since in FF Proxy is a function and not in V8, this is how we do it.
 
 
+    #we do this purely to preserve instanceof checks!
     if typeof obj is "function"
       newobj = obj.bind({})
       newobj.prototype = Object.create(obj.prototype)
+      for own prop, val of obj
+        newobj[prop] = val
       obj = newobj
 
     if typeof Proxy isnt "function"
