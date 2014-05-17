@@ -587,8 +587,7 @@ overload_fun = (contractParents, blameparents)->
       for rngcontract in rngcontracts
         try
           if isDelayedContract rngcontract.contract
-            if not (domcontract.contract.ctype is "opt" and current_arg is undefined)
-              delayed_rng.push rngcontract.contract
+            delayed_rng.push rngcontract.contract
           else
             rngcontract.contract.check res, pos, neg, parents, stack
         catch e
