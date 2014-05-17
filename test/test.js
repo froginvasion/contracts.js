@@ -925,3 +925,58 @@ test("test object contract silent mode", function(){
     raises(function() {f.foo = 3; });
 
 });
+
+module("generic contracts");
+
+test("basic generic contracts", function() {
+    var c = generic_contract("T");
+    var f = guard(fun([c], Any), function(){ return 2;});
+    ok(f(2));
+    c.instantiate(Str);
+    ok(f("foo"));
+    raises(function(){ f(2)});
+    raises(function(){c.instantiate(Num)});
+
+    c = generic_contract("T");
+    f = guard(fun([c], c), function(){ return "foo"});
+    ok(f(2));
+    c.instantiate(Str);
+    ok(f("ho"));
+    raises(function(){ f(2)});
+
+    c = generic_contract("T");
+    f = guard(fun([c], c), function(){ return "foo"; });
+    c.instantiate(Num);
+    raises(function(){ f(2);});
+
+});
+
+test("object generic contracts", function() {
+
+    var T = new generic_contract("T");
+    var V = new generic_contract("V");
+    var c = generic_object({ "foo": T},{"generic_contracts": [T]});
+    var o = guard(c, {"foo": 2});
+    ok(o.foo);
+    c.instantiate(Str);
+    raises(function() {o.foo});
+
+    c = generic_object({"foo": V}, {"generic_contracts": [V]});
+    o = guard(c, {"foo": 2});
+    ok(o.foo);
+    c.instantiate(Num);
+    ok(o.foo);
+    raises(function(){o.foo = "hi"});
+
+    //with two vars
+    T = new generic_contract("T");
+    V = new generic_contract("V");
+    c = generic_object({"foo": T, "bar": V}, {"generic_contracts": [T,V]});
+    o = guard(c, {"foo": 2, "bar": 2});
+    ok(o.foo);
+    ok(o.bar);
+    c.instantiate(Str, Num);
+    raises(function(){o.foo});
+    ok(o.bar);
+
+});

@@ -741,6 +741,41 @@ extend = (orig,ext)->
   c = object(origContract, {})
   c
 
+generic_contract = (name)->
+
+  handler = (val, pos, neg, parentKs, stack)->
+    if not c.instantiated
+      val
+    else
+      @genericContract.check val, pos, neg, parentKs, stack
+
+  c = new Contract(name, "generic", handler)
+  c.instantiated = false
+  c.instantiate = (k)->
+    if not @instantiated
+      @genericContract = k
+      @instantiated = true
+    else
+      throw new Error "Generic contract can't be instantiated twice!"
+
+  c.equals = (other)->
+    this is other
+  c
+
+generic_object = (objContract, options = {}, name, rest...)->
+  o = object(objContract, options, name)
+  return o if not options.generic_contracts
+
+  o.instantiated = false
+  o.instantiate = ->
+    throw new Error("Generic object contract can't be instantiated twice!") if o.instantiated
+    args = Array::slice.call(arguments)
+    for v, k in args
+      if not v instanceof Contract
+        throw new Error "#{v} isnt a contract"
+      options.generic_contracts[k].instantiate(v) if typeof options.generic_contracts[k].instantiate is "function"
+    o.instantiated = true
+  o
 
 
 object = (objContract, options = {}, name) ->
@@ -1318,6 +1353,8 @@ root.opt       = opt
 root.guard     = guard
 root.extend    = extend
 root.overload_fun = overload_fun
+root.generic_contract = generic_contract
+root.generic_object = generic_object
 # utility functions
 
 # for use with commonjs.
