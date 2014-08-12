@@ -1358,7 +1358,7 @@ Arr = (c)->
 
 
 
-RegExp = check ((e)-> e instanceof RegExp), "RegExp"
+_RegExp = check ((e)-> e instanceof RegExp), "RegExp"
 Fun = check ((e)-> typeof e is "function"), "Function"
 
 
@@ -1377,7 +1377,7 @@ root.Arr       = Arr
 root.Self      = self
 root.Any       = any
 root.None      = none
-root.RegExp    = RegExp
+root.RegExp    = _RegExp
 root.Fun       = Fun
 # combinators
 root.check     = check
