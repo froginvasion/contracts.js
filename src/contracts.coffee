@@ -416,6 +416,19 @@ fun = (dom, rng, options) ->
     unproxy.set p, this
     p
   )
+  c.instantiate = ->
+    args = [].slice.call(arguments)
+    i = 0
+    j = 0
+    while i < dom.length
+      dom_contract = dom[i]
+      if typeof dom_contract.instantiate is "function" and j < args.length
+        dom_contract.instantiate(args[j])
+        j++
+      i++
+    if typeof rng.instantiate is "function" and j < args.length
+      rng.instantiate(args[j])
+
   c.calldom = calldom
   c.callrng = callrng
   c.newdom = newdom
@@ -613,40 +626,6 @@ overload_fun = (contractParents, blameparents)->
     handler["construct"] = (target, args)->
       makeHandler(false)(target, args)
 
-    handler["defineProperty"] = (name, desc) ->
-      localfuns = funs.slice(0)
-      ocs = getObjectContracts.call(localfuns)
-      return Object.defineProperty f, name, desc if ocs.length is 0
-
-      for oc, key in ocs
-        try
-          ocproxy = oc.check Object.create(f), pos, neg, parents
-          Object.defineProperty ocproxy, name, desc
-        catch e
-          delete ocs[key]
-      ocs = ocs.filter (e)-> e
-      if ocs.length is 0
-        blame pos, neg, c, c.name, parents
-      Object.defineProperty f, name, desc
-
-    handler["delete"] = (name)->
-      localfuns = funs.slice(0)
-      ocs = getObjectContracts.call(localfuns)
-      if ocs.length is 0
-        res = delete f[name] if ocs.length is 0
-        return res
-      for oc, key in ocs
-        try
-          ocproxy = oc.check Object.create(f), pos, neg, parents
-          delete ocproxy[name]
-        catch e
-          delete ocs[key]
-      ocs = ocs.filter (e)-> e
-      if ocs.length is 0
-        blame pos, neg, c, c.name, parents
-      res = delete f[name]
-      res
-
     handler["get"] = (receiver, name)->
       localfuns = funs.slice(0)
       ocs = getObjectContracts.call localfuns
@@ -741,16 +720,47 @@ extend = (orig,ext)->
   c = object(origContract, {})
   c
 
-generic_contract = (name)->
+infer_primitive = (o)->
+  if typeof o is "string"
+    return root.Str
+  else if typeof o is "number"
+    return root.Num
+  else if typeof o is "boolean"
+    return root.Bool
+  else if typeof o is "undefined"
+    return root.Undefined
+  else if o is null
+    return root.Null
+  else if Array.isArray o
+    return root.Arr
+  else
+    return root.Any
+
+
+class Coffer
+  value = null
+
+  constructor: (val)->
+    value = val
+
+  unwrap: ()->
+    value
+
+
+
+
+
+generic_var = (name)->
 
   handler = (val, pos, neg, parentKs, stack)->
-    if not c.instantiated
-      val
-    else
-      @genericContract.check val, pos, neg, parentKs, stack
+    if not c.instantiated and not c.inferred
+      inferred_contract = infer_primitive(val)
+      c.instantiate(k)
+    @genericContract.check val, pos, neg, parentKs, stack
 
-  c = new Contract(name, "generic", handler)
+  c = new Contract(name, "parametric", handler)
   c.instantiated = false
+  c.inferred = false
   c.instantiate = (k)->
     if not @instantiated
       @genericContract = k
@@ -799,12 +809,21 @@ object = (objContract, options = {}, name) ->
 
 
     #we do this purely to preserve instanceof checks!
-    if typeof obj is "function"
+    if typeof obj is "function" and options.class? and options.class instanceof Contract
       newobj = obj.bind({})
       newobj.prototype = Object.create(obj.prototype)
+
+      options.class.raw_options.silent = true
+      newobj.prototype = options.class.check newobj.prototype, pos, neg, parentKs
       for own prop, val of obj
         newobj[prop] = val
       obj = newobj
+
+      ###    if typeof obj is "function"
+      if options.class?
+        #we set it to silent because we might have properties in the prototype that don't exist but do exist on an instance
+        options.class.raw_options.silent = true
+        obj.prototype = options.class.check obj.prototype, pos, neg, parentKs###
 
     if typeof Proxy isnt "function"
       handler = idHandler obj
@@ -844,14 +863,11 @@ object = (objContract, options = {}, name) ->
       blame pos, neg, "[non-frozen object]", "[frozen object]", parents
 
     if options.class and not options.class instanceof Contract
-      _blame pos, neg, "class option isnt a contract", parents
+      _blame pos, neg, "class option isn't a contract", parents
 
     if @oc["prototype"] isnt undefined
       console.log "WARNING: using contract on prototype: use supported 'class' in options object"
-    else if options.class
-      #we set it to silent because we might have properties in the prototype that don't exist but do exist on an instance
-      options.class.raw_options.silent = true
-      @oc["prototype"] = options.class
+
 
     # do some cleaning of the object contract...
     # in particular wrap all object contract in a prop descriptor like object
@@ -982,6 +998,10 @@ object = (objContract, options = {}, name) ->
         obj and that.oc[name].value.check obj[name], pos, neg, parents
       else if (options.arrayRangeContract and (options.arrayRange isnt `undefined`)) and (parseInt(name, 10) >= options.arrayRange)
         obj and options.arrayRangeContract.check obj[name], pos, neg, parents
+      else if (options.stringIndexContract and typeof name is "string")
+        obj and options.stringIndexContract.check obj[name], pos, neg, parents
+      else if (options.numberIndexContract) and (typeof name is "number")
+        obj and options.numberIndexContract.check obj[name], pos, neg, parents
       else
         obj and obj[name]
 
@@ -999,6 +1019,10 @@ object = (objContract, options = {}, name) ->
         obj[name] = that.oc[name]["value"].check(val, neg, pos, parents)
       else if (options.arrayRangeContract and (options.arrayRange isnt undefined)) and (parseInt(name, 10) >= options.arrayRange)
         obj[name] = options.arrayRangeContract.check(val, neg, pos, parents)
+      else if (options.stringIndexContract and typeof name is "string")
+        obj[name] = options.stringIndexContract.check(val, neg, pos, parents)
+      else if (options.numberIndexContact) and (typeof name is "number")
+        obj[name] = options.numberIndexContract.check(val, neg, pos, parents)
       else
         obj[name] = val
       if options.invariant
@@ -1012,12 +1036,10 @@ object = (objContract, options = {}, name) ->
       try
         op = new Proxy(obj, handler)
         handler["construct"] = (target, args)->
-          boundArgs = [].concat.apply([{}], arguments)
-          bf = obj.bind.apply(obj, boundArgs)
+          boundArgs = [].concat.apply([{}], args)
+          bf = target.bind.apply(target, boundArgs)
+          bf.prototype = Object.create(obj.prototype)
           result = new bf()
-          ###          objProto = Object.create(obj.prototype);
-          instance = obj.apply(objProto, args);
-          result =  (typeof instance is "object" and instance ) or objProto;###
           if options.class
             options.class.check result, pos, neg, parents
           else
@@ -1031,6 +1053,7 @@ object = (objContract, options = {}, name) ->
         , (args) ->
           boundArgs = [].concat.apply([{}], arguments);
           bf = obj.bind.apply(obj, boundArgs);
+          bf.prototype = Object.create(obj.prototype)
           result = new bf();
           ###          objProto = Object.create(obj.prototype);
                     instance = obj.apply(objProto, arguments);
@@ -1321,6 +1344,24 @@ none = (->
   c
 )()
 
+Arr = (c)->
+  k = new Contract "Array<" + c.toString() + ">", "array", (val, pos, neg, parents)->
+    parentKs = parents.slice(0)
+    that = this
+    parentKs.push that
+    if !Array.isArray(val)
+      blameM(pos, neg, "Value is not an array", parentKs)
+    for v of val
+      c.check v, pos, neg, parentKs
+    val
+  k
+
+
+
+RegExp = check ((e)-> e instanceof RegExp), "RegExp"
+Fun = check((e)-> typeof e is "function"), "Function"
+
+
 # contracts
 root.Undefined = check ((x) -> undefined is x), "Undefined"
 root.Null      = check ((x) -> null is x), "Null"
@@ -1332,10 +1373,12 @@ root.Even      = check ((x) -> (x % 2) isnt 1), "Even"
 root.Pos       = check ((x) -> x >= 0), "Pos"
 root.Nat       = check ((x) -> x > 0), "Nat"
 root.Neg       = check ((x) -> x < 0), "Neg"
-root.Arr       = object(length: check ((x) -> typeof (x) is "number"), "Number")
+root.Arr       = Arr
 root.Self      = self
 root.Any       = any
 root.None      = none
+root.RegExp    = RegExp
+root.Fun       = Fun
 # combinators
 root.check     = check
 root.fun       = fun
@@ -1353,7 +1396,7 @@ root.opt       = opt
 root.guard     = guard
 root.extend    = extend
 root.overload_fun = overload_fun
-root.generic_contract = generic_contract
+root.generic_contract = generic_var
 root.generic_object = generic_object
 # utility functions
 

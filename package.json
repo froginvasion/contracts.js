@@ -8,6 +8,9 @@
     "type":       "MIT",
     "url":        "https://raw.github.com/disnet/contracts.js/master/LICENSE"
   }],
+  "dependencies": {
+      "harmony-reflect": "1.0.0"
+  },
   "engines":      {
     "node":       ">=0.8.0"
   },

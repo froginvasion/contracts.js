@@ -745,7 +745,7 @@ test("test coffeescript-like class inheritance", function() {
         __extends(B, _super);
 
         function B() {
-            return B.__super__.constructor.apply(this, arguments);
+            return _super.apply(this, arguments);
         }
 
         return B;
@@ -754,7 +754,7 @@ test("test coffeescript-like class inheritance", function() {
 
     var o = new B();
     raises(function() {o.foo() }, "should raise since it expects a num");
-    ok(o.foo(2), "should raise since it expects a num");
+    ok(o.foo(2), "should not raise since it expects a num");
 
 
     o = new A();
@@ -931,7 +931,6 @@ module("generic contracts");
 test("basic generic contracts", function() {
     var c = generic_contract("T");
     var f = guard(fun([c], Any), function(){ return 2;});
-    ok(f(2));
     c.instantiate(Str);
     ok(f("foo"));
     raises(function(){ f(2)});
@@ -939,7 +938,6 @@ test("basic generic contracts", function() {
 
     c = generic_contract("T");
     f = guard(fun([c], c), function(){ return "foo"});
-    ok(f(2));
     c.instantiate(Str);
     ok(f("ho"));
     raises(function(){ f(2)});
@@ -951,19 +949,29 @@ test("basic generic contracts", function() {
 
 });
 
+test("infered generic contracts", function() {
+    var c = generic_contract("T");
+    var f = guard(fun([c],c), function(id) { return id;});
+    ok(f(2));
+    raises(function(){ f("foo")});
+    raises(function(){ f(true)});
+    f = guard(fun([c],c), function(id) { return id;});
+    ok(f("hi"));
+    raises(function() { });
+
+});
+
 test("object generic contracts", function() {
 
     var T = new generic_contract("T");
     var V = new generic_contract("V");
     var c = generic_object({ "foo": T},{"generic_contracts": [T]});
     var o = guard(c, {"foo": 2});
-    ok(o.foo);
     c.instantiate(Str);
     raises(function() {o.foo});
 
     c = generic_object({"foo": V}, {"generic_contracts": [V]});
     o = guard(c, {"foo": 2});
-    ok(o.foo);
     c.instantiate(Num);
     ok(o.foo);
     raises(function(){o.foo = "hi"});
@@ -973,8 +981,6 @@ test("object generic contracts", function() {
     V = new generic_contract("V");
     c = generic_object({"foo": T, "bar": V}, {"generic_contracts": [T,V]});
     o = guard(c, {"foo": 2, "bar": 2});
-    ok(o.foo);
-    ok(o.bar);
     c.instantiate(Str, Num);
     raises(function(){o.foo});
     ok(o.bar);
