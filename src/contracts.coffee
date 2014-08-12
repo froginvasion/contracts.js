@@ -1359,7 +1359,7 @@ Arr = (c)->
 
 
 RegExp = check ((e)-> e instanceof RegExp), "RegExp"
-Fun = check((e)-> typeof e is "function"), "Function"
+Fun = check ((e)-> typeof e is "function"), "Function"
 
 
 # contracts
