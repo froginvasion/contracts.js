@@ -529,6 +529,8 @@ overload_fun = (contractParents, blameparents)->
     else
       handler = idHandler(f)
 
+    blame pos, neg, this, f, parents  if typeof f is "undefined"
+
     makeHandler = (nondirect)-> (target, thisArg, args)->
       if nondirect
         args = Array::slice.call(arguments)
@@ -565,7 +567,7 @@ overload_fun = (contractParents, blameparents)->
 
         for domcontract in domcontracts
           try
-            if isDelayedContract domcontract.contract
+            if isDelayedContract domcontract.contract and typeof current_arg isnt "undefined"
               delayed_ks.push domcontract.contract
             else
               domcontract.contract.check current_arg, pos, neg, parents, stack
@@ -713,10 +715,11 @@ extend = (orig,ext)->
     if orContract["value"] and orContract["value"] instanceof Contract
       orContract = orContract["value"]
     if not extendedContract.equals(orContract)
-      throw new Error "Both contracts have duplicate properties but contracts are not equal"
+      console.log "WARN: #{key} does occur in both contracts, but the contract is not equal."
 
   for own key,val of extendingContract
-    origContract[key] = val
+    if not Object.hasOwnProperty.call(origContract, key)
+      origContract[key] = val
   c = object(origContract, {})
   c
 
@@ -1352,7 +1355,7 @@ Arr = (c)->
     if !Array.isArray(val)
       blameM(pos, neg, "Value is not an array", parentKs)
     for v of val
-      c.check v, pos, neg, parentKs
+      c.check val[v], pos, neg, parentKs
     val
   k
 
