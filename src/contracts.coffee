@@ -291,7 +291,7 @@ fun = (dom, rng, options) ->
   contractName = domName + " -> " + callrng.cname + " " + optionsName
 
   c = new Contract(contractName, "fun", (f, pos, neg, parentKs, stack) ->
-    handler = idHandler f
+    #handler = idHandler f
     that = this
     parents = parentKs.slice(0)
     blame pos, neg, this, f, parents  if typeof f isnt "function"
@@ -308,8 +308,11 @@ fun = (dom, rng, options) ->
       rest: Contract - this contract will be checked for all remaining arguments
     ###
     makeHandler = (dom, rng, options) ->
-      functionHandler = ->
-        args = []
+      functionHandler = (target, thisArg, args)->
+        if typeof args is "undefined"
+          args = thisArg
+          thisArg = undefined
+        checked_args = []
 
         if options and options.checkStack and not (options.checkStack(stack))
           throw new Error("stack checking failed")
@@ -328,15 +331,15 @@ fun = (dom, rng, options) ->
           options.rest = root.opt(options.rest)
 
 
-        # check all the arguments
+        # check all the args
         i = 0
-        max_i = Math.max dom?.length, arguments.length
+        max_i = Math.max dom?.length, args.length
         if typeof dom?.length is 'number'
-          if arguments.length > dom.length and not options.rest
+          if args.length > dom.length and not options.rest
             if options.aritycheck
               blameM neg, pos, "Too many arguments supplied to function", parents
             else
-              console.log("WARNING: #{f} was applied with too many arguments. expected: #{dom.length} actual: #{arguments.length}. Dom contracts: #{dom}")
+              console.log("WARNING: #{target} was applied with too many arguments. expected: #{dom.length} actual: #{args.length}. Dom contracts: #{dom}")
 
         isrest = null
         while i < max_i
@@ -345,31 +348,31 @@ fun = (dom, rng, options) ->
           #
           # blame is reversed
           if isrest
-            checked = options.rest.check arguments[i], neg, pos, parents, stack
+            checked = options.rest.check args[i], neg, pos, parents, stack
           else
-            if dom[i]?.ctype is "opt" and arguments[i] isnt undefined and options.rest?
+            if dom[i]?.ctype is "opt" and args[i] isnt undefined and options.rest?
               try
-                checked = dom[i].check arguments[i], neg, pos, parents, stack
+                checked = dom[i].check args[i], neg, pos, parents, stack
               catch e
                 isrest = true
-                checked = options.rest.check arguments[i], neg, pos, parents, stack
+                checked = options.rest.check args[i], neg, pos, parents, stack
             else if not dom[i] and options.rest?
               isrest = true
-              checked = options.rest.check arguments[i], neg, pos, parents, stack
+              checked = options.rest.check args[i], neg, pos, parents, stack
             else
               checked = if dom[i]
-                dom[i].check arguments[i], neg, pos, parents, stack
-              else arguments[i]
-          if i < arguments.length
-            args[i] = checked
-            # assigning back to args since we might be wrapping functions/objects
+                dom[i].check args[i], neg, pos, parents, stack
+              else args[i]
+          if i < args.length
+            checked_args[i] = checked
+            # assigning back to checked_args since we might be wrapping functions/objects
             # in delayed contracts
           i++
 
         if typeof rng is "function"
           # send the arguments to the dependent range
-          dep_args = if Array.isArray args then args else [args]
-          clean_rng = rng.call(this, args)
+          dep_args = if Array.isArray checked_args then checked_args else [checked_args]
+          clean_rng = rng.apply(thisArg, checked_args)
           if not (clean_rng instanceof Contract)
             throw new Error "range argument to function contract is not a contract"
         else
@@ -381,17 +384,17 @@ fun = (dom, rng, options) ->
         if options.isNew or options.newSafe
           # null is in the 'this' argument position for bind...
           # bind will ignore the supplied 'this' when we call it with new
-          boundArgs = [].concat.apply([ null ], args)
-          bf = f.bind.apply(f, boundArgs)
+          boundArgs = [].concat.apply([ null ], checked_args)
+          bf = target.bind.apply(target, boundArgs)
           res = new bf()
           res = clean_rng.check(res, pos, neg, parents, stack)
         else
           if options.this
             # blame is reversed
-            thisc = options.this.check(this, neg, pos, parents, stack)
+            thisc = options.this.check(thisArg, neg, pos, parents, stack)
           else
-            thisc = this
-          res = clean_rng.check(f.apply(thisc, args), pos, neg, parents, stack)
+            thisc = thisArg
+          res = clean_rng.check(target.apply(thisc, checked_args), pos, neg, parents, stack)
 
         # check post condition
         if typeof options.post is "function" and not options.post this
@@ -412,7 +415,10 @@ fun = (dom, rng, options) ->
       callHandler = makeHandler(@calldom, @callrng, options)
       newHandler = makeHandler(@newdom, @newrng, options)
 
-    p = Proxy.createFunction(handler, callHandler, newHandler)
+    handler = {}
+    handler['apply'] = callHandler
+    handler['construct'] = newHandler
+    p = Proxy(f, handler)
     unproxy.set p, this
     p
   )
@@ -814,12 +820,15 @@ object = (objContract, options = {}, name) ->
     #we do this purely to preserve instanceof checks!
     if typeof obj is "function" and options.class? and options.class instanceof Contract
       newobj = obj.bind({})
-      newobj.prototype = Object.create(obj.prototype)
-
       options.class.raw_options.silent = true
-      newobj.prototype = options.class.check newobj.prototype, pos, neg, parentKs
-      for own prop, val of obj
-        newobj[prop] = val
+      newobj.prototype = Proxy Object.create(obj.prototype), {
+        "get": (target, name, receiver)->
+          if options.class.oc.hasOwnProperty(name)
+            options.class.oc[name].check(target[name], pos, neg, parentKs)
+          else
+            target[name]
+      }
+      #newobj.prototype = options.class.check newobj.prototype, pos, neg, parentKs
       obj = newobj
 
       ###    if typeof obj is "function"
@@ -966,8 +975,8 @@ object = (objContract, options = {}, name) ->
       invariant = options.invariant.bind(obj)
       blame neg, pos, "invariant: #{options.invariant.toString()}", obj, parents  unless invariant()
 
-    handler.defineProperty = (name, desc) ->
-      # note: we coulad have also allowed a TypeError to be thrown by the system
+    handler["defineProperty"] = (target, name, desc) ->
+      # note: we could have also allowed a TypeError to be thrown by the system
       # if in strict mode or silengtly fail otherwise but we're using the blame system
       # for hopfully better error messaging
       if (options.extensible is false) or options.sealed or options.frozen
@@ -979,9 +988,9 @@ object = (objContract, options = {}, name) ->
         blame neg, pos, "[non-configurable property: #{name}]",
           "[attempted to change the property descriptor of property: #{name}]", parents
 
-      Object.defineProperty obj, name, desc
+      Object.defineProperty target, name, desc
 
-    handler["delete"] = (name) ->
+    handler["deleteProperty"] = (target, name) ->
       res = undefined
       invariant = undefined
       # have to reverse blame since the client is the one calling delete
@@ -989,27 +998,27 @@ object = (objContract, options = {}, name) ->
         blame neg, pos, "#{if options.sealed then 'sealed' else 'frozen'} object",
           "[call to delete]", parents
 
-      res = delete obj[name]
+      res = delete target[name]
 
       if options.invariant
-        invariant = options.invariant.bind(obj)
-        blame neg, pos, "invariant: #{options.invariant.toString()}", obj, parents  unless invariant()
-      res
+        invariant = options.invariant.bind(target)
+        blame neg, pos, "invariant: #{options.invariant.toString()}", target, parents  unless invariant()
+      true
 
-    handler["get"] = (receiver, name) ->
+    handler["get"] = (target, name, receiver) ->
       if that.oc.hasOwnProperty(name)
-        obj and that.oc[name].value.check obj[name], pos, neg, parents
+        that.oc[name].value.check target[name], pos, neg, parents
       else if (options.arrayRangeContract and (options.arrayRange isnt `undefined`)) and (parseInt(name, 10) >= options.arrayRange)
-        obj and options.arrayRangeContract.check obj[name], pos, neg, parents
+        options.arrayRangeContract.check target[name], pos, neg, parents
       else if (options.stringIndexContract and typeof name is "string")
-        obj and options.stringIndexContract.check obj[name], pos, neg, parents
+        options.stringIndexContract.check target[name], pos, neg, parents
       else if (options.numberIndexContract) and (typeof name is "number")
-        obj and options.numberIndexContract.check obj[name], pos, neg, parents
+       options.numberIndexContract.check target[name], pos, neg, parents
       else
-        obj and obj[name]
+        target[name]
 
-    handler.set = (receiver, name, val) ->
-      if (options.extensible is false) and Object.getOwnPropertyDescriptor(obj, name) is undefined
+    handler["set"] = (target, name, val, receiver) ->
+      if (options.extensible is false) and Object.getOwnPropertyDescriptor(target, name) is undefined
         blame neg, pos, "non-extensible object", "[attempted to set a new property: #{name}]", parents
 
       if options.frozen
@@ -1019,15 +1028,15 @@ object = (objContract, options = {}, name) ->
         if not that.oc[name].writable
           blame neg, pos, "read-only property", "[attempted to set read-only property: #{name}]", parents
         # have to reverse blame since the client is the one calling set
-        obj[name] = that.oc[name]["value"].check(val, neg, pos, parents)
+        target[name] = that.oc[name]["value"].check(val, neg, pos, parents)
       else if (options.arrayRangeContract and (options.arrayRange isnt undefined)) and (parseInt(name, 10) >= options.arrayRange)
-        obj[name] = options.arrayRangeContract.check(val, neg, pos, parents)
+        target[name] = options.arrayRangeContract.check(val, neg, pos, parents)
       else if (options.stringIndexContract and typeof name is "string")
-        obj[name] = options.stringIndexContract.check(val, neg, pos, parents)
+        target[name] = options.stringIndexContract.check(val, neg, pos, parents)
       else if (options.numberIndexContact) and (typeof name is "number")
-        obj[name] = options.numberIndexContract.check(val, neg, pos, parents)
+        target[name] = options.numberIndexContract.check(val, neg, pos, parents)
       else
-        obj[name] = val
+        target[name] = val
       if options.invariant
         invariant = options.invariant.bind(obj)
         blame neg, pos, "invariant: #{options.invariant.toString()}", obj, parents  unless invariant()
@@ -1037,18 +1046,24 @@ object = (objContract, options = {}, name) ->
     # function to preserve typeof checks
     if typeof obj is "function"
       try
-        op = new Proxy(obj, handler)
         handler["construct"] = (target, args)->
-          boundArgs = [].concat.apply([{}], args)
+          bound = [].concat.apply([null], args)
+          bf = target.bind.apply(target, bound)
+          bf.prototype = Object.create target.prototype
+          result = new bf()
+          if options.class
+            return options.class.check result, pos, neg, parents
+          return result
+        ###handler["construct"] = (target, args)->
+          boundArgs = [].concat.apply([null], args)
           bf = target.bind.apply(target, boundArgs)
-          bf.prototype = Object.create(obj.prototype)
+          bf.prototype = Object.create(target.prototype)
           result = new bf()
           if options.class
             options.class.check result, pos, neg, parents
           else
-            result
-        handler["apply"] = (target, thisArg, args)->
-          target.apply thisArg, args
+            result###
+        op = Proxy(obj, handler)
       catch e
 
         op = Proxy.createFunction(handler, (args) ->
@@ -1069,7 +1084,7 @@ object = (objContract, options = {}, name) ->
     else
       proto = if obj is null then null else Object.getPrototypeOf obj
       try
-        op = new Proxy(obj, handler)
+        op = Proxy(obj, handler)
       catch e
         # V8 hasn't implemented direct proxies yet so failback to old api
         op = Proxy.create(handler, proto)
@@ -1408,7 +1423,7 @@ root.generic_object = generic_object
 # server module name whenever a contracted value is added.
 # root.exports :: (Str, {}?) -> {}
 root.exports = (moduleName, original = {}) ->
-  handler = idHandler original
+  handler = {}
   handler.set = (r, name, value) ->
     if (value isnt null) and typeof value is "object" or typeof value is "function"
       orig = contract_orig_map.get value
@@ -1421,7 +1436,7 @@ root.exports = (moduleName, original = {}) ->
         server: moduleName
     original[name] = value
     return
-  Proxy.create handler
+  Proxy original, handler
 
 # for use with AMD.
 # goes through each value on the export object and
